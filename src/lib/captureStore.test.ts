@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   captureMaxAgeMs,
+  captureMaxSessions,
   captureSessions,
+  consumeCaptureRecord,
   getCaptureRecord,
   isValidCaptureImageDataUrl,
   isValidCaptureSessionId,
@@ -44,5 +46,46 @@ describe("capture store", () => {
 
     expect(getCaptureRecord("session-123", now + captureMaxAgeMs - 1)).not.toBeNull();
     expect(getCaptureRecord("session-123", now + captureMaxAgeMs + 1)).toBeNull();
+  });
+
+  it("consumes capture records after first desktop read", () => {
+    const now = Date.parse("2026-06-20T20:00:00.000Z");
+
+    saveCaptureRecord(
+      "session-123",
+      {
+        imageDataUrl: "data:image/jpeg;base64,abcd1234",
+        name: "room.jpg",
+        type: "image/jpeg",
+        size: 4,
+      },
+      now,
+    );
+
+    expect(consumeCaptureRecord("session-123", now)).toMatchObject({
+      imageDataUrl: "data:image/jpeg;base64,abcd1234",
+    });
+    expect(getCaptureRecord("session-123", now)).toBeNull();
+  });
+
+  it("keeps the in-memory capture bridge bounded", () => {
+    const now = Date.parse("2026-06-20T20:00:00.000Z");
+
+    Array.from({ length: captureMaxSessions + 5 }).forEach((_, index) => {
+      saveCaptureRecord(
+        `session-${String(index).padStart(3, "0")}`,
+        {
+          imageDataUrl: "data:image/jpeg;base64,abcd1234",
+          name: "room.jpg",
+          type: "image/jpeg",
+          size: 4,
+        },
+        now + index,
+      );
+    });
+
+    expect(captureSessions.size).toBe(captureMaxSessions);
+    expect(getCaptureRecord("session-000", now + captureMaxSessions + 5)).toBeNull();
+    expect(getCaptureRecord(`session-${String(captureMaxSessions + 4).padStart(3, "0")}`, now + captureMaxSessions + 5)).not.toBeNull();
   });
 });
