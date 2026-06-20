@@ -6,15 +6,23 @@ import {
   removeProduct,
   swapProduct,
 } from "./recommendations";
+import type { ProjectPreferences } from "../types";
+
+const basePreferences: ProjectPreferences = {
+  budget: 1700,
+  style: "soft-modern",
+  palette: "sage-clay",
+  roomType: "living-room",
+  location: "Dublin, Ireland",
+  designIntensity: "balanced",
+  shoppingPriority: "balanced",
+  mustKeep: "",
+};
 
 describe("recommendations", () => {
   it("keeps the initial curated list under a realistic budget when matching products exist", () => {
     const selection = createInitialSelection({
-      budget: 1700,
-      style: "soft-modern",
-      palette: "sage-clay",
-      roomType: "living-room",
-      location: "Dublin, Ireland",
+      ...basePreferences,
     });
 
     const summary = calculateCartSummary(selection, 1700);
@@ -27,10 +35,10 @@ describe("recommendations", () => {
 
   it("updates totals when a product is removed", () => {
     const selection = createInitialSelection({
+      ...basePreferences,
       budget: 2200,
       style: "warm-minimal",
       palette: "walnut-cream",
-      roomType: "living-room",
       location: "London, UK",
     });
     const productToRemove = selection[0];
@@ -45,10 +53,8 @@ describe("recommendations", () => {
 
   it("swaps to another product in the same category", () => {
     const selection = createInitialSelection({
+      ...basePreferences,
       budget: 2400,
-      style: "soft-modern",
-      palette: "sage-clay",
-      roomType: "living-room",
       location: "Manchester, UK",
     });
     const sofa = selection.find((product) => product.category === "sofa");

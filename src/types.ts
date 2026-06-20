@@ -25,6 +25,9 @@ export interface ProjectPreferences {
   palette: PaletteId;
   roomType: RoomType;
   location: string;
+  designIntensity: "light-touch" | "balanced" | "full-redesign";
+  shoppingPriority: "best-value" | "balanced" | "premium";
+  mustKeep: string;
 }
 
 export interface UploadedRoom {

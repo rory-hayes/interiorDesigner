@@ -1,79 +1,25 @@
-import dotenv from "dotenv";
-import express from "express";
-import { buildRoomRenderPrompt } from "./renderPrompt";
+import { buildRoomRenderPrompt } from "../server/renderPrompt";
 import type { ProjectPreferences, RoomConcept } from "../src/types";
 
-dotenv.config({ path: ".env.local" });
-dotenv.config();
-
-const app = express();
-const port = Number(process.env.PORT ?? 8787);
 const openAIBaseUrl = "https://api.openai.com/v1";
-const captureSessions = new Map<
-  string,
-  {
-    imageDataUrl: string;
-    name: string;
-    type: string;
-    size: number;
-    uploadedAt: string;
-  }
->();
-
-app.use(express.json({ limit: "25mb" }));
 
 interface OpenAIImagesResponse {
   data?: Array<{ b64_json?: string }>;
   error?: { message?: string };
 }
 
-app.get("/api/health", (_request, response) => {
-  response.json({
-    ok: true,
-    openaiConfigured: Boolean(process.env.OPENAI_API_KEY),
-    mode: process.env.OPENAI_API_KEY ? "live" : "demo",
-  });
-});
-
-app.get("/api/capture-sessions/:sessionId", (request, response) => {
-  const capture = captureSessions.get(request.params.sessionId);
-
-  response.json({
-    ok: true,
-    capture: capture ?? null,
-  });
-});
-
-app.post("/api/capture-sessions/:sessionId/photo", (request, response) => {
-  const body = request.body as {
-    imageDataUrl?: string;
-    name?: string;
-    type?: string;
-    size?: number;
-  };
-
-  if (!body.imageDataUrl) {
-    response.status(400).json({ error: "Missing imageDataUrl." });
+export default async function handler(request: any, response: any) {
+  if (request.method !== "POST") {
+    response.setHeader("Allow", "POST");
+    response.status(405).json({ error: "Method not allowed." });
     return;
   }
 
-  captureSessions.set(request.params.sessionId, {
-    imageDataUrl: body.imageDataUrl,
-    name: body.name ?? "Phone room photo",
-    type: body.type ?? "image/jpeg",
-    size: body.size ?? 0,
-    uploadedAt: new Date().toISOString(),
-  });
-
-  response.json({ ok: true });
-});
-
-app.post("/api/generate-room-render", async (request, response) => {
   const apiKey = process.env.OPENAI_API_KEY;
 
   if (!apiKey) {
     response.status(503).json({
-      error: "OpenAI API key is not configured. Add OPENAI_API_KEY to .env.local and restart the dev server.",
+      error: "OpenAI API key is not configured. Add OPENAI_API_KEY in Vercel project settings.",
     });
     return;
   }
@@ -135,7 +81,7 @@ app.post("/api/generate-room-render", async (request, response) => {
       return;
     }
 
-    response.json({
+    response.status(200).json({
       imageUrl: `data:image/webp;base64,${b64}`,
       model: imageModel,
       prompt,
@@ -145,8 +91,4 @@ app.post("/api/generate-room-render", async (request, response) => {
       error: error instanceof Error ? error.message : "Unexpected image generation error.",
     });
   }
-});
-
-app.listen(port, "127.0.0.1", () => {
-  console.log(`Roomwise API listening on http://127.0.0.1:${port}`);
-});
+}
