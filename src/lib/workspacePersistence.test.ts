@@ -70,6 +70,20 @@ describe("workspace persistence", () => {
     });
   });
 
+  it("cleans persisted free-text brief fields before restoring app state", () => {
+    const workspace = normalizePersistedWorkspace({
+      preferences: {
+        location: "  Dublin\n\t  Ireland\u0000  ",
+        mustKeep: "  Keep sofa\r\nAvoid glass tables\u007f  ",
+      },
+    });
+
+    expect(workspace.preferences).toEqual({
+      location: "Dublin Ireland",
+      mustKeep: "Keep sofa Avoid glass tables",
+    });
+  });
+
   it("saves and clears lightweight workspace state", () => {
     const storage = createStorage();
 
