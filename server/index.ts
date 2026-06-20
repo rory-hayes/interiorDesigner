@@ -8,8 +8,8 @@ import {
   saveCaptureRecord,
 } from "../api/_captureStore";
 import { isSupportedRoomImageDataUrl, roomImageDataUrlMaxLength } from "../api/_imageDataUrl";
+import { normalizeRenderRequest } from "../api/_renderRequest";
 import { buildRoomRenderPrompt } from "./renderPrompt";
-import type { ProjectPreferences, RoomConcept } from "../src/types";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
@@ -87,24 +87,13 @@ app.post("/api/capture-sessions/:sessionId/photo", (request, response) => {
 });
 
 app.post("/api/generate-room-render", async (request, response) => {
-  const apiKey = process.env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    response.status(503).json({
-      error: "OpenAI API key is not configured. Add OPENAI_API_KEY to .env.local and restart the dev server.",
-    });
-    return;
-  }
-
   const body = request.body as {
     imageDataUrl?: string;
-    preferences?: ProjectPreferences;
-    concept?: Pick<RoomConcept, "name" | "summary">;
   };
 
-  if (!body.imageDataUrl || !body.preferences || !body.concept) {
+  if (!body.imageDataUrl) {
     response.status(400).json({
-      error: "Missing imageDataUrl, preferences, or concept.",
+      error: "Missing imageDataUrl.",
     });
     return;
   }
@@ -123,8 +112,26 @@ app.post("/api/generate-room-render", async (request, response) => {
     return;
   }
 
+  const renderRequest = normalizeRenderRequest(request.body);
+
+  if (!renderRequest) {
+    response.status(400).json({
+      error: "Invalid room preferences or design concept.",
+    });
+    return;
+  }
+
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    response.status(503).json({
+      error: "OpenAI API key is not configured. Add OPENAI_API_KEY to .env.local and restart the dev server.",
+    });
+    return;
+  }
+
   const imageModel = process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-2";
-  const prompt = buildRoomRenderPrompt(body.preferences, body.concept);
+  const prompt = buildRoomRenderPrompt(renderRequest.preferences, renderRequest.concept);
   const imageRequestBody: Record<string, unknown> = {
     model: imageModel,
     images: [{ image_url: body.imageDataUrl }],
