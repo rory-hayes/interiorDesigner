@@ -10,6 +10,7 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - The UI, upload flow, explicit photo consent, QR phone-capture path, shopping-plan interface, workspace persistence, support/legal links, security headers, and demo-mode API health route are deployed.
 - A local beta insights panel tracks funnel events and estimated live render spend on the user's device.
 - The temporary phone-capture bridge validates session IDs and image data, expires stale uploads, caps in-memory records, and removes each photo after the desktop session reads it once.
+- Render requests validate the uploaded image, known preference enums, budget range, concept fields, and bounded free-text notes before any live OpenAI call.
 - `/api/health` currently reports `mode: "demo"` until `OPENAI_API_KEY` is configured in Vercel.
 - Beta privacy and terms pages are available at `/privacy.html` and `/terms.html`.
 
@@ -60,6 +61,7 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - App chrome shows local beta insights for runs, failures, photos, and estimated render spend.
 - Phone capture page opens from QR link.
 - Phone capture records are removed from temporary storage after first desktop read.
+- Invalid render preferences are rejected before an OpenAI request is attempted.
 - `/privacy.html` returns 200.
 - `/terms.html` returns 200.
 - `/api/health` returns 200.
