@@ -1,4 +1,4 @@
-import { captureSessions } from "../_captureStore.js";
+import { getCaptureRecord, isValidCaptureSessionId } from "../_captureStore.js";
 
 export default function handler(request: any, response: any) {
   const sessionId = String(request.query.sessionId ?? "");
@@ -8,8 +8,13 @@ export default function handler(request: any, response: any) {
     return;
   }
 
+  if (!isValidCaptureSessionId(sessionId)) {
+    response.status(400).json({ error: "Invalid sessionId." });
+    return;
+  }
+
   response.status(200).json({
     ok: true,
-    capture: captureSessions.get(sessionId) ?? null,
+    capture: getCaptureRecord(sessionId),
   });
 }
