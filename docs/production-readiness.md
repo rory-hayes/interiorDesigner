@@ -11,7 +11,9 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - A local beta insights panel tracks funnel events and estimated live render spend on the user's device.
 - The temporary phone-capture bridge validates session IDs and image data, expires stale uploads, caps in-memory records, and removes each photo after the desktop session reads it once.
 - Render requests validate the uploaded image, known preference enums, budget range, concept fields, and bounded free-text notes before any live OpenAI call.
+- Render requests with missing or malformed bodies return controlled 400 errors instead of uncaught handler exceptions.
 - Dynamic API responses for health, phone capture, upload, and render generation explicitly send no-store cache headers.
+- API endpoints reject unsupported methods with explicit `Allow` headers where applicable.
 - Live render API handling preserves useful OpenAI upstream error messages even when the provider returns a non-JSON response.
 - `/api/health` currently reports `mode: "demo"` until `OPENAI_API_KEY` is configured in Vercel.
 - Beta privacy and terms pages are available at `/privacy.html` and `/terms.html`.
@@ -63,7 +65,9 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - App chrome shows local beta insights for runs, failures, photos, and estimated render spend.
 - Phone capture page opens from QR link.
 - Phone capture records are removed from temporary storage after first desktop read.
+- Missing render request bodies return a controlled 400 response.
 - Invalid render preferences are rejected before an OpenAI request is attempted.
+- Unsupported API methods return 405 with an `Allow` header.
 - Non-JSON OpenAI upstream failures are converted into readable render errors.
 - Dynamic API responses return `Cache-Control: no-store, max-age=0`.
 - `/privacy.html` returns 200.
