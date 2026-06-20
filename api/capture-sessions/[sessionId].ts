@@ -1,6 +1,12 @@
-import { getCaptureRecord, isValidCaptureSessionId } from "../_captureStore.js";
+import { consumeCaptureRecord, isValidCaptureSessionId } from "../_captureStore.js";
 
 export default function handler(request: any, response: any) {
+  if (request.method !== "GET") {
+    response.setHeader("Allow", "GET");
+    response.status(405).json({ error: "Method not allowed." });
+    return;
+  }
+
   const sessionId = String(request.query.sessionId ?? "");
 
   if (!sessionId) {
@@ -15,6 +21,6 @@ export default function handler(request: any, response: any) {
 
   response.status(200).json({
     ok: true,
-    capture: getCaptureRecord(sessionId),
+    capture: consumeCaptureRecord(sessionId),
   });
 }
