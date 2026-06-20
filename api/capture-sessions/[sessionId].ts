@@ -1,6 +1,9 @@
 import { consumeCaptureRecord, isValidCaptureSessionId } from "../_captureStore.js";
+import { setNoStoreCacheHeaders } from "../_privacyHeaders.js";
 
 export default function handler(request: any, response: any) {
+  setNoStoreCacheHeaders(response);
+
   if (request.method !== "GET") {
     response.setHeader("Allow", "GET");
     response.status(405).json({ error: "Method not allowed." });
