@@ -31,6 +31,13 @@ import {
   phoneCaptureConsentDetail,
 } from "./lib/betaSafeguards";
 import {
+  appendBetaTelemetryEvent,
+  clearBetaTelemetry,
+  readBetaTelemetry,
+  summarizeBetaTelemetry,
+  type BetaTelemetryEventName,
+} from "./lib/betaTelemetry";
+import {
   calculateCartSummary,
   createInitialSelection,
   removeProduct,
@@ -267,7 +274,9 @@ function RoomwiseWorkspace() {
   const [captureSessionId] = useState(createSessionId);
   const [captureCopied, setCaptureCopied] = useState(false);
   const [photoConsent, setPhotoConsent] = useState(false);
+  const [telemetryEvents, setTelemetryEvents] = useState(readBetaTelemetry);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hasTrackedWorkspaceOpen = useRef(false);
   const timers = useRef<number[]>([]);
 
   const selectedConcept = concepts.find((concept) => concept.id === selectedConceptId) ?? concepts[0];
@@ -282,6 +291,16 @@ function RoomwiseWorkspace() {
   const qrUrl = useMemo(() => buildQrUrl(captureUrl), [captureUrl]);
   const hasPlan = selectedProducts.length > 0;
   const displayedRoomUrl = previewMode === "after" && generatedRender ? generatedRender.imageUrl : uploadedRoom?.url;
+  const betaInsights = useMemo(() => summarizeBetaTelemetry(telemetryEvents), [telemetryEvents]);
+
+  function trackBetaEvent(name: BetaTelemetryEventName, mode: IntegrationMode | "unknown" = integrationMode) {
+    setTelemetryEvents(appendBetaTelemetryEvent({ name, mode }));
+  }
+
+  function handleResetBetaInsights() {
+    clearBetaTelemetry();
+    setTelemetryEvents([]);
+  }
 
   useEffect(() => {
     return () => {
@@ -295,6 +314,15 @@ function RoomwiseWorkspace() {
   useEffect(() => {
     void checkIntegrationMode().then(setIntegrationMode);
   }, []);
+
+  useEffect(() => {
+    if (hasTrackedWorkspaceOpen.current) {
+      return;
+    }
+
+    hasTrackedWorkspaceOpen.current = true;
+    trackBetaEvent("workspace_opened", "unknown");
+  });
 
   useEffect(() => {
     savePersistedWorkspace({
@@ -340,6 +368,7 @@ function RoomwiseWorkspace() {
         setUploadError(null);
         setShareState("idle");
         setStatus("idle");
+        trackBetaEvent("phone_capture_photo_received", integrationMode);
       } catch {
         // The capture bridge is a progressive enhancement; local design still works without it.
       }
@@ -385,6 +414,7 @@ function RoomwiseWorkspace() {
     setGenerationError(null);
     setPreviewMode("after");
     setStatus("analyzing");
+    trackBetaEvent("generation_started", integrationMode);
 
     statusSequence.slice(1).forEach((nextStatus, index) => {
       const timer = window.setTimeout(
@@ -411,10 +441,14 @@ function RoomwiseWorkspace() {
                 });
                 setGeneratedRender(render);
                 setStatus("ready");
+                trackBetaEvent("generation_completed", "live");
               } catch (error) {
                 setGenerationError(error instanceof Error ? error.message : "OpenAI render failed.");
                 setStatus("ready");
+                trackBetaEvent("generation_failed", "live");
               }
+            } else {
+              trackBetaEvent("generation_completed", integrationMode);
             }
           }
         },
@@ -463,6 +497,7 @@ function RoomwiseWorkspace() {
       setUploadError(null);
       setShareState("idle");
       setStatus("idle");
+      trackBetaEvent("photo_uploaded", integrationMode);
     } catch {
       URL.revokeObjectURL(objectUrl);
       setUploadedRoom(null);
@@ -490,6 +525,7 @@ function RoomwiseWorkspace() {
     setGenerationError(null);
     setSelectedProducts([]);
     setStatus("idle");
+    trackBetaEvent("sample_photo_used", integrationMode);
   }
 
   function handlePreviewError() {
@@ -507,6 +543,7 @@ function RoomwiseWorkspace() {
     try {
       await navigator.clipboard.writeText(captureUrl);
       setCaptureCopied(true);
+      trackBetaEvent("phone_capture_link_copied", integrationMode);
       window.setTimeout(() => setCaptureCopied(false), 1600);
     } catch {
       setCaptureCopied(false);
@@ -547,6 +584,7 @@ function RoomwiseWorkspace() {
     setShareState("idle");
     setPreviewMode("before");
     setStatus("idle");
+    trackBetaEvent("workspace_reset", integrationMode);
   }
 
   async function handleShare() {
@@ -558,6 +596,7 @@ function RoomwiseWorkspace() {
         products: selectedProducts,
       });
       setShareState("copied");
+      trackBetaEvent("shopping_list_copied", integrationMode);
     } catch {
       setShareState("fallback");
     }
@@ -681,6 +720,9 @@ function RoomwiseWorkspace() {
                     type="checkbox"
                     onChange={(event) => {
                       setPhotoConsent(event.target.checked);
+                      if (event.target.checked) {
+                        trackBetaEvent("photo_consent_confirmed", integrationMode);
+                      }
                       if (event.target.checked && uploadError === photoConsentRequiredMessage) {
                         setUploadError(null);
                       }
@@ -797,6 +839,33 @@ function RoomwiseWorkspace() {
                 ? "AI render ready"
                 : "Demo mode"}
           </span>
+        </section>
+
+        <section className="beta-insights" aria-label="Beta analytics and cost tracking">
+          <div className="beta-insights-head">
+            <p className="eyebrow">Beta insights</p>
+            <button type="button" onClick={handleResetBetaInsights}>
+              Reset
+            </button>
+          </div>
+          <dl>
+            <div>
+              <dt>Runs</dt>
+              <dd>{betaInsights.generationAttempts}</dd>
+            </div>
+            <div>
+              <dt>Failures</dt>
+              <dd>{betaInsights.generationFailures}</dd>
+            </div>
+            <div>
+              <dt>Photos</dt>
+              <dd>{betaInsights.photosAdded}</dd>
+            </div>
+            <div>
+              <dt>Est. spend</dt>
+              <dd>${betaInsights.estimatedRenderCostUsd.toFixed(2)}</dd>
+            </div>
+          </dl>
         </section>
 
         <section className="preference-stack" aria-label="Room brief">
