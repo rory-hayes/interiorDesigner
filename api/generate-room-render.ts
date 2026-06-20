@@ -1,14 +1,10 @@
 import { isSupportedRoomImageDataUrl, roomImageDataUrlMaxLength } from "./_imageDataUrl.js";
+import { readOpenAIImagesResponse } from "./_openAIImagesResponse.js";
 import { setNoStoreCacheHeaders } from "./_privacyHeaders.js";
 import { normalizeRenderRequest } from "./_renderRequest.js";
 import { buildRoomRenderPrompt } from "../server/renderPrompt.js";
 
 const openAIBaseUrl = "https://api.openai.com/v1";
-
-interface OpenAIImagesResponse {
-  data?: Array<{ b64_json?: string }>;
-  error?: { message?: string };
-}
 
 export default async function handler(request: any, response: any) {
   setNoStoreCacheHeaders(response);
@@ -88,7 +84,7 @@ export default async function handler(request: any, response: any) {
       body: JSON.stringify(imageRequestBody),
     });
 
-    const payload = (await openAIResponse.json()) as OpenAIImagesResponse;
+    const payload = await readOpenAIImagesResponse(openAIResponse);
 
     if (!openAIResponse.ok) {
       response.status(openAIResponse.status).json({
