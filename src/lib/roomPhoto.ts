@@ -148,3 +148,39 @@ export async function normalizeRoomPhoto(file: File): Promise<NormalizedRoomPhot
     URL.revokeObjectURL(objectUrl);
   }
 }
+
+function getDataUrlImageType(dataUrl: string) {
+  return /^data:(image\/(?:jpeg|png|webp));base64,/.exec(dataUrl)?.[1] ?? "image/jpeg";
+}
+
+export async function normalizeRoomImageDataUrl(dataUrl: string): Promise<NormalizedRoomPhoto> {
+  const image = await loadImage(dataUrl);
+  const imageWidth = image.naturalWidth || image.width;
+  const imageHeight = image.naturalHeight || image.height;
+  const originalSize = getBoundedRoomPhotoSize(imageWidth, imageHeight, Number.POSITIVE_INFINITY);
+  const shouldResize =
+    dataUrl.length > normalizedRoomPhotoMaxDataUrlLength ||
+    Math.max(originalSize.width, originalSize.height) > normalizedRoomPhotoMaxDimension;
+
+  if (!shouldResize && dataUrl.length <= normalizedRoomPhotoMaxDataUrlLength) {
+    return {
+      dataUrl,
+      type: getDataUrlImageType(dataUrl),
+      size: dataUrl.length,
+      width: originalSize.width,
+      height: originalSize.height,
+      wasCompressed: false,
+    };
+  }
+
+  const compressed = await createCompressedPhoto(image);
+
+  if (!compressed) {
+    throw new Error("Room photo is too large. Please try a smaller JPG, PNG, or WebP image.");
+  }
+
+  return {
+    ...compressed,
+    wasCompressed: true,
+  };
+}
