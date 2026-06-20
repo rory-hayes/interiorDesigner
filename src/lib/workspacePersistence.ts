@@ -27,8 +27,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function getString(value: unknown, maxLength: number) {
-  return typeof value === "string" ? value.slice(0, maxLength) : undefined;
+function getCleanText(value: unknown, maxLength: number) {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  return value.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, maxLength);
 }
 
 function getAllowedString<T extends string>(value: unknown, allowed: T[]) {
@@ -55,8 +59,8 @@ export function normalizePersistedWorkspace(value: unknown): PersistedWorkspace 
     const roomType = getAllowedString(value.preferences.roomType, validRoomTypes);
     const designIntensity = getAllowedString(value.preferences.designIntensity, validDesignIntensities);
     const shoppingPriority = getAllowedString(value.preferences.shoppingPriority, validShoppingPriorities);
-    const location = getString(value.preferences.location, 120);
-    const mustKeep = getString(value.preferences.mustKeep, 600);
+    const location = getCleanText(value.preferences.location, 120);
+    const mustKeep = getCleanText(value.preferences.mustKeep, 600);
 
     if (style) preferences.style = style;
     if (palette) preferences.palette = palette;
