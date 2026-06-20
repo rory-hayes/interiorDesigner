@@ -702,6 +702,59 @@ a {
   background: var(--olive-soft);
 }
 
+.beta-insights {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #faf8f3;
+}
+
+.beta-insights-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.beta-insights-head button {
+  padding: 0;
+  color: var(--olive-dark);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 850;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.beta-insights dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.beta-insights div {
+  min-width: 0;
+}
+
+.beta-insights dt {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.beta-insights dd {
+  margin: 2px 0 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 900;
+}
+
 .preference-stack {
   display: grid;
   gap: 18px;
@@ -987,7 +1040,8 @@ a {
 
   .must-keep-field,
   .locked-shopping,
-  .shopping-plan {
+  .shopping-plan,
+  .beta-insights {
     grid-column: 1 / -1;
   }
 }
@@ -1216,6 +1270,10 @@ a {
   }
 
   .mode-pill {
+    display: none;
+  }
+
+  .beta-insights {
     display: none;
   }
 
