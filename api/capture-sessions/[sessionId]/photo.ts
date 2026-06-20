@@ -4,8 +4,11 @@ import {
   isValidCaptureSessionId,
   saveCaptureRecord,
 } from "../../_captureStore.js";
+import { setNoStoreCacheHeaders } from "../../_privacyHeaders.js";
 
 export default function handler(request: any, response: any) {
+  setNoStoreCacheHeaders(response);
+
   if (request.method !== "POST") {
     response.setHeader("Allow", "POST");
     response.status(405).json({ error: "Method not allowed." });
