@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import express from "express";
+import { isSupportedRoomImageDataUrl, roomImageDataUrlMaxLength } from "../api/_imageDataUrl";
 import { buildRoomRenderPrompt } from "./renderPrompt";
 import type { ProjectPreferences, RoomConcept } from "../src/types";
 
@@ -57,6 +58,16 @@ app.post("/api/capture-sessions/:sessionId/photo", (request, response) => {
     return;
   }
 
+  if (body.imageDataUrl.length > roomImageDataUrlMaxLength) {
+    response.status(413).json({ error: "Room photo is too large. Please upload a smaller JPG, PNG, or WebP image." });
+    return;
+  }
+
+  if (!isSupportedRoomImageDataUrl(body.imageDataUrl)) {
+    response.status(400).json({ error: "Invalid imageDataUrl. Please upload a JPG, PNG, or WebP image." });
+    return;
+  }
+
   captureSessions.set(request.params.sessionId, {
     imageDataUrl: body.imageDataUrl,
     name: body.name ?? "Phone room photo",
@@ -87,6 +98,20 @@ app.post("/api/generate-room-render", async (request, response) => {
   if (!body.imageDataUrl || !body.preferences || !body.concept) {
     response.status(400).json({
       error: "Missing imageDataUrl, preferences, or concept.",
+    });
+    return;
+  }
+
+  if (body.imageDataUrl.length > roomImageDataUrlMaxLength) {
+    response.status(413).json({
+      error: "Room photo is too large. Please upload a smaller JPG, PNG, or WebP image.",
+    });
+    return;
+  }
+
+  if (!isSupportedRoomImageDataUrl(body.imageDataUrl)) {
+    response.status(400).json({
+      error: "Invalid imageDataUrl. Please upload a JPG, PNG, or WebP image.",
     });
     return;
   }
