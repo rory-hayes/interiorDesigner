@@ -9,6 +9,7 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - Current branch: `codex/roomwise-mvp`
 - The UI, upload flow, explicit photo consent, QR phone-capture path, shopping-plan interface, workspace persistence, support/legal links, security headers, and demo-mode API health route are deployed.
 - A local beta insights panel tracks funnel events and estimated live render spend on the user's device.
+- The temporary phone-capture bridge validates session IDs and image data, expires stale uploads, caps in-memory records, and removes each photo after the desktop session reads it once.
 - `/api/health` currently reports `mode: "demo"` until `OPENAI_API_KEY` is configured in Vercel.
 - Beta privacy and terms pages are available at `/privacy.html` and `/terms.html`.
 
@@ -28,6 +29,7 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 
 3. Replace volatile phone-capture storage
    - Current phone capture uses in-memory serverless storage.
+   - Captures are now one-time-read, TTL-limited, and bounded to reduce privacy and memory risk during beta testing.
    - This is acceptable for a demo but not reliable across serverless instances or cold starts.
    - Production should use persistent storage such as Vercel Blob, S3, Supabase Storage, or a database-backed asset table.
 
@@ -57,6 +59,7 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - App chrome links to support, privacy, and terms.
 - App chrome shows local beta insights for runs, failures, photos, and estimated render spend.
 - Phone capture page opens from QR link.
+- Phone capture records are removed from temporary storage after first desktop read.
 - `/privacy.html` returns 200.
 - `/terms.html` returns 200.
 - `/api/health` returns 200.
