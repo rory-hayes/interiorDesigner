@@ -1,4 +1,4 @@
-import { captureSessions } from "../_captureStore";
+import { captureSessions } from "../_captureStore.js";
 
 export default function handler(request: any, response: any) {
   const sessionId = String(request.query.sessionId ?? "");

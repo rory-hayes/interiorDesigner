@@ -1,4 +1,4 @@
-import type { ProjectPreferences, RoomConcept } from "../src/types";
+import type { ProjectPreferences, RoomConcept } from "../src/types.js";
 
 export function buildRoomRenderPrompt(preferences: ProjectPreferences, concept: Pick<RoomConcept, "name" | "summary">) {
   const room = preferences.roomType.replace("-", " ");

@@ -1,5 +1,5 @@
-import { buildRoomRenderPrompt } from "../server/renderPrompt";
-import type { ProjectPreferences, RoomConcept } from "../src/types";
+import { buildRoomRenderPrompt } from "../server/renderPrompt.js";
+import type { ProjectPreferences, RoomConcept } from "../src/types.js";
 
 const openAIBaseUrl = "https://api.openai.com/v1";
 
