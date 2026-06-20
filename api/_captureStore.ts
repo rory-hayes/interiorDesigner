@@ -1,3 +1,5 @@
+import { isSupportedRoomImageDataUrl, roomImageDataUrlMaxLength } from "./_imageDataUrl.js";
+
 interface CaptureRecord {
   imageDataUrl: string;
   name: string;
@@ -7,9 +9,8 @@ interface CaptureRecord {
 }
 
 const captureMaxAgeMs = 30 * 60 * 1000;
-const captureMaxImageDataUrlLength = 16 * 1024 * 1024;
+const captureMaxImageDataUrlLength = roomImageDataUrlMaxLength;
 const captureSessionIdPattern = /^[a-zA-Z0-9-]{6,80}$/;
-const captureImageDataUrlPattern = /^data:image\/(?:jpeg|png|webp);base64,[a-zA-Z0-9+/=]+$/;
 
 declare global {
   var __roomwiseCaptureSessions: Map<string, CaptureRecord> | undefined;
@@ -24,7 +25,7 @@ export function isValidCaptureSessionId(sessionId: string) {
 }
 
 export function isValidCaptureImageDataUrl(imageDataUrl: string) {
-  return imageDataUrl.length <= captureMaxImageDataUrlLength && captureImageDataUrlPattern.test(imageDataUrl);
+  return isSupportedRoomImageDataUrl(imageDataUrl);
 }
 
 export function cleanupExpiredCaptureSessions(now = Date.now()) {
