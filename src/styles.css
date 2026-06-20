@@ -148,7 +148,7 @@ a {
 .photo-added strong,
 .photo-empty strong,
 .phone-capture-row strong,
-.saved-projects strong,
+.workspace-save strong,
 .locked-shopping strong {
   font-size: 14px;
 }
@@ -156,7 +156,7 @@ a {
 .project-card span,
 .photo-empty span,
 .phone-capture-row small,
-.saved-projects small,
+.workspace-save small,
 .locked-shopping span,
 .capture-card p,
 .photo-tips li,
@@ -210,7 +210,7 @@ a {
 }
 
 .photo-added button,
-.saved-projects button {
+.workspace-save button {
   width: fit-content;
   padding: 0;
   color: var(--olive-dark);
@@ -257,34 +257,35 @@ a {
   min-width: 0;
 }
 
-.saved-projects {
+.workspace-save {
   gap: 10px;
 }
 
-.saved-projects button {
+.save-state {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 9px;
   align-items: center;
-  width: 100%;
-  text-align: left;
-  text-decoration: none;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--olive-soft);
 }
 
-.saved-thumb {
-  display: block;
-  width: 48px;
-  height: 48px;
-  border-radius: 7px;
-  background:
-    linear-gradient(rgba(255, 253, 250, 0.08), rgba(255, 253, 250, 0.08)),
-    url("/samples/whatsapp-bedroom.jpeg") center / cover;
+.save-state svg {
+  color: var(--olive);
 }
 
-.saved-projects button span:last-child {
+.save-state span {
   display: grid;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
+}
+
+.workspace-save button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .rail-footer {
@@ -971,7 +972,7 @@ a {
 
   .rail-label,
   .project-card,
-  .saved-projects,
+  .workspace-save,
   .rail-footer {
     display: none;
   }
