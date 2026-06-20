@@ -8,6 +8,7 @@ import {
   saveCaptureRecord,
 } from "../api/_captureStore";
 import { isSupportedRoomImageDataUrl, roomImageDataUrlMaxLength } from "../api/_imageDataUrl";
+import { readOpenAIImagesResponse } from "../api/_openAIImagesResponse";
 import { setNoStoreCacheHeaders } from "../api/_privacyHeaders";
 import { normalizeRenderRequest } from "../api/_renderRequest";
 import { buildRoomRenderPrompt } from "./renderPrompt";
@@ -20,11 +21,6 @@ const port = Number(process.env.PORT ?? 8787);
 const openAIBaseUrl = "https://api.openai.com/v1";
 
 app.use(express.json({ limit: "25mb" }));
-
-interface OpenAIImagesResponse {
-  data?: Array<{ b64_json?: string }>;
-  error?: { message?: string };
-}
 
 app.get("/api/health", (_request, response) => {
   setNoStoreCacheHeaders(response);
@@ -165,7 +161,7 @@ app.post("/api/generate-room-render", async (request, response) => {
       body: JSON.stringify(imageRequestBody),
     });
 
-    const payload = (await openAIResponse.json()) as OpenAIImagesResponse;
+    const payload = await readOpenAIImagesResponse(openAIResponse);
 
     if (!openAIResponse.ok) {
       response.status(openAIResponse.status).json({
