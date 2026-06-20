@@ -1,4 +1,5 @@
 import { isSupportedRoomImageDataUrl, roomImageDataUrlMaxLength } from "./_imageDataUrl.js";
+import { setNoStoreCacheHeaders } from "./_privacyHeaders.js";
 import { normalizeRenderRequest } from "./_renderRequest.js";
 import { buildRoomRenderPrompt } from "../server/renderPrompt.js";
 
@@ -10,6 +11,8 @@ interface OpenAIImagesResponse {
 }
 
 export default async function handler(request: any, response: any) {
+  setNoStoreCacheHeaders(response);
+
   if (request.method !== "POST") {
     response.setHeader("Allow", "POST");
     response.status(405).json({ error: "Method not allowed." });
