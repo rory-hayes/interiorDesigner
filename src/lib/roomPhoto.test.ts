@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getBoundedRoomPhotoSize,
+  normalizeRoomImageDataUrl,
   normalizeRoomPhoto,
   normalizedRoomPhotoMaxDimension,
 } from "./roomPhoto";
@@ -100,6 +101,19 @@ describe("room photo normalization", () => {
     mockObjectUrl("blob:large-room");
 
     const photo = await normalizeRoomPhoto(new File(["large"], "room.jpg", { type: "image/jpeg" }));
+
+    expect(photo.wasCompressed).toBe(true);
+    expect(photo.type).toBe("image/webp");
+    expect(photo.width).toBe(1920);
+    expect(photo.height).toBe(1440);
+    expect(photo.dataUrl).toMatch(/^data:image\/webp;base64,/);
+  });
+
+  it("compresses high-resolution data URLs before API submission", async () => {
+    mockImageDimensions(4032, 3024);
+    mockCanvas();
+
+    const photo = await normalizeRoomImageDataUrl("data:image/jpeg;base64,large-room-photo");
 
     expect(photo.wasCompressed).toBe(true);
     expect(photo.type).toBe("image/webp");
