@@ -57,6 +57,16 @@ describe("Roomwise beta safeguards", () => {
     expect(screen.getByRole("link", { name: "Support" }).getAttribute("href")).toBe("mailto:roryh1@gmail.com");
   });
 
+  it("shows local beta analytics and cost tracking", async () => {
+    render(<App />);
+    await waitFor(() => expect(screen.getByText("Demo mode")).toBeTruthy());
+
+    expect(screen.getByText("Beta insights")).toBeTruthy();
+    expect(screen.getByText("Runs")).toBeTruthy();
+    expect(screen.getByText("Failures")).toBeTruthy();
+    expect(screen.getByText("Est. spend")).toBeTruthy();
+  });
+
   it("requires consent before uploading a phone-capture photo", () => {
     window.history.pushState({}, "", "/?capture=session-123");
     render(<App />);
