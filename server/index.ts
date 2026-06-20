@@ -1,5 +1,12 @@
 import dotenv from "dotenv";
 import express from "express";
+import {
+  captureMaxImageDataUrlLength,
+  consumeCaptureRecord,
+  isValidCaptureImageDataUrl,
+  isValidCaptureSessionId,
+  saveCaptureRecord,
+} from "../api/_captureStore";
 import { isSupportedRoomImageDataUrl, roomImageDataUrlMaxLength } from "../api/_imageDataUrl";
 import { buildRoomRenderPrompt } from "./renderPrompt";
 import type { ProjectPreferences, RoomConcept } from "../src/types";
@@ -10,16 +17,6 @@ dotenv.config();
 const app = express();
 const port = Number(process.env.PORT ?? 8787);
 const openAIBaseUrl = "https://api.openai.com/v1";
-const captureSessions = new Map<
-  string,
-  {
-    imageDataUrl: string;
-    name: string;
-    type: string;
-    size: number;
-    uploadedAt: string;
-  }
->();
 
 app.use(express.json({ limit: "25mb" }));
 
@@ -37,15 +34,21 @@ app.get("/api/health", (_request, response) => {
 });
 
 app.get("/api/capture-sessions/:sessionId", (request, response) => {
-  const capture = captureSessions.get(request.params.sessionId);
+  const { sessionId } = request.params;
+
+  if (!isValidCaptureSessionId(sessionId)) {
+    response.status(400).json({ error: "Invalid sessionId." });
+    return;
+  }
 
   response.json({
     ok: true,
-    capture: capture ?? null,
+    capture: consumeCaptureRecord(sessionId),
   });
 });
 
 app.post("/api/capture-sessions/:sessionId/photo", (request, response) => {
+  const { sessionId } = request.params;
   const body = request.body as {
     imageDataUrl?: string;
     name?: string;
@@ -53,27 +56,31 @@ app.post("/api/capture-sessions/:sessionId/photo", (request, response) => {
     size?: number;
   };
 
+  if (!isValidCaptureSessionId(sessionId)) {
+    response.status(400).json({ error: "Invalid sessionId." });
+    return;
+  }
+
   if (!body.imageDataUrl) {
     response.status(400).json({ error: "Missing imageDataUrl." });
     return;
   }
 
-  if (body.imageDataUrl.length > roomImageDataUrlMaxLength) {
+  if (body.imageDataUrl.length > captureMaxImageDataUrlLength) {
     response.status(413).json({ error: "Room photo is too large. Please upload a smaller JPG, PNG, or WebP image." });
     return;
   }
 
-  if (!isSupportedRoomImageDataUrl(body.imageDataUrl)) {
+  if (!isValidCaptureImageDataUrl(body.imageDataUrl)) {
     response.status(400).json({ error: "Invalid imageDataUrl. Please upload a JPG, PNG, or WebP image." });
     return;
   }
 
-  captureSessions.set(request.params.sessionId, {
+  saveCaptureRecord(sessionId, {
     imageDataUrl: body.imageDataUrl,
     name: body.name ?? "Phone room photo",
     type: body.type ?? "image/jpeg",
     size: body.size ?? 0,
-    uploadedAt: new Date().toISOString(),
   });
 
   response.json({ ok: true });
