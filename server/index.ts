@@ -57,14 +57,14 @@ app.post("/api/capture-sessions/:sessionId/photo", (request, response) => {
     name?: string;
     type?: string;
     size?: number;
-  };
+  } | undefined;
 
   if (!isValidCaptureSessionId(sessionId)) {
     response.status(400).json({ error: "Invalid sessionId." });
     return;
   }
 
-  if (!body.imageDataUrl) {
+  if (!body?.imageDataUrl) {
     response.status(400).json({ error: "Missing imageDataUrl." });
     return;
   }
@@ -94,9 +94,9 @@ app.post("/api/generate-room-render", async (request, response) => {
 
   const body = request.body as {
     imageDataUrl?: string;
-  };
+  } | undefined;
 
-  if (!body.imageDataUrl) {
+  if (!body?.imageDataUrl) {
     response.status(400).json({
       error: "Missing imageDataUrl.",
     });
