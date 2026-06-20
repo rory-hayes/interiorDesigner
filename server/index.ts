@@ -10,6 +10,7 @@ import {
 import { isSupportedRoomImageDataUrl, roomImageDataUrlMaxLength } from "../api/_imageDataUrl";
 import { readOpenAIImagesResponse } from "../api/_openAIImagesResponse";
 import { setNoStoreCacheHeaders } from "../api/_privacyHeaders";
+import { consumeRenderRateLimit, getRenderRateLimitKey } from "../api/_renderRateLimit";
 import { normalizeRenderRequest } from "../api/_renderRequest";
 import { buildRoomRenderPrompt } from "./renderPrompt";
 
@@ -131,6 +132,19 @@ app.post("/api/generate-room-render", async (request, response) => {
   if (!apiKey) {
     response.status(503).json({
       error: "OpenAI API key is not configured. Add OPENAI_API_KEY to .env.local and restart the dev server.",
+    });
+    return;
+  }
+
+  const rateLimit = consumeRenderRateLimit(getRenderRateLimitKey(request));
+  response.setHeader("X-RateLimit-Limit", String(rateLimit.limit));
+  response.setHeader("X-RateLimit-Remaining", String(rateLimit.remaining));
+  response.setHeader("X-RateLimit-Reset", String(Math.ceil(rateLimit.resetAt / 1000)));
+
+  if (!rateLimit.allowed) {
+    response.setHeader("Retry-After", String(rateLimit.retryAfterSeconds));
+    response.status(429).json({
+      error: "Too many render requests. Please wait before generating another redesign.",
     });
     return;
   }
