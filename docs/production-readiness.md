@@ -7,8 +7,9 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - Production URL: https://interior-designer-nu.vercel.app/
 - Vercel project: `interior-designer`
 - Current branch: `codex/roomwise-mvp`
-- The UI, upload flow, QR phone-capture path, shopping-plan interface, and demo-mode API health route are deployed.
+- The UI, upload flow, QR phone-capture path, shopping-plan interface, workspace persistence, security headers, and demo-mode API health route are deployed.
 - `/api/health` currently reports `mode: "demo"` until `OPENAI_API_KEY` is configured in Vercel.
+- Beta privacy and terms pages are available at `/privacy.html` and `/terms.html`.
 
 ## Required Before Selling
 
@@ -36,21 +37,23 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 
 5. Add real product data
    - Current product links are placeholder retailer examples.
-   - Replace `src/data/catalog.ts` with affiliate feeds or official retailer APIs.
+   - Replace `src/data/catalog.ts` with affiliate feeds or official retailer APIs where available.
    - Track availability, region, price, product image, dimensions, category, and affiliate URL.
 
-6. Add commercial basics
-   - Privacy policy and terms.
-   - Photo-upload consent language.
-   - Support/contact path.
-   - Analytics for funnel drop-off and generation failures.
-   - Cost tracking per render.
+6. Finish commercial basics
+   - Beta privacy policy and terms are now published, but they still need qualified legal review before paid launch.
+   - Add explicit photo-upload consent in the app UI.
+   - Add support/contact path inside the app chrome.
+   - Add analytics for funnel drop-off and generation failures.
+   - Add cost tracking per render.
 
 ## Verification Checklist
 
 - Desktop viewport loads without document scroll.
 - Mobile viewport loads without document scroll.
 - Phone capture page opens from QR link.
+- `/privacy.html` returns 200.
+- `/terms.html` returns 200.
 - `/api/health` returns 200.
 - `/api/capture-sessions/test-session` returns 200.
 - `/api/generate-room-render` returns 503 in demo mode and succeeds in live mode.
