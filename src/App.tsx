@@ -15,6 +15,7 @@ import {
   RotateCw,
   Settings,
   ShoppingBag,
+  ShieldCheck,
   Sparkles,
   Trash2,
   Upload,
@@ -23,6 +24,12 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { concepts, palettes, products, roomTypes, styles } from "./data/catalog";
 import { checkIntegrationMode, generateRoomRender } from "./lib/api";
+import {
+  betaLegalLinks,
+  photoConsentLabel,
+  photoConsentRequiredMessage,
+  phoneCaptureConsentDetail,
+} from "./lib/betaSafeguards";
 import {
   calculateCartSummary,
   createInitialSelection,
@@ -129,9 +136,16 @@ function buildQrUrl(value: string) {
 function CaptureUpload({ sessionId }: { sessionId: string }) {
   const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [message, setMessage] = useState("Take a clear photo in daylight, showing as much of the room as possible.");
+  const [captureConsent, setCaptureConsent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) {
+    if (!captureConsent) {
+      setStatus("error");
+      setMessage(photoConsentRequiredMessage);
+      return;
+    }
+
     if (!isBrowserFriendlyImage(file)) {
       setStatus("error");
       setMessage("Please choose a JPG, PNG, or WebP room photo.");
@@ -178,9 +192,21 @@ function CaptureUpload({ sessionId }: { sessionId: string }) {
         <h1>Add a room photo</h1>
         <p>{message}</p>
 
+        <label className="photo-consent capture-consent">
+          <input
+            checked={captureConsent}
+            type="checkbox"
+            onChange={(event) => setCaptureConsent(event.target.checked)}
+          />
+          <span>
+            <strong>{photoConsentLabel}</strong>
+            <small>{phoneCaptureConsentDetail}</small>
+          </span>
+        </label>
+
         <button
           className="primary-button capture-button"
-          disabled={status === "uploading" || status === "done"}
+          disabled={!captureConsent || status === "uploading" || status === "done"}
           type="button"
           onClick={() => fileInputRef.current?.click()}
         >
@@ -240,6 +266,7 @@ function RoomwiseWorkspace() {
   const [previewMode, setPreviewMode] = useState<"before" | "after">("before");
   const [captureSessionId] = useState(createSessionId);
   const [captureCopied, setCaptureCopied] = useState(false);
+  const [photoConsent, setPhotoConsent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const timers = useRef<number[]>([]);
 
@@ -398,6 +425,13 @@ function RoomwiseWorkspace() {
   }
 
   async function handleUpload(file: File) {
+    if (!photoConsent) {
+      setUploadedRoom(null);
+      setUploadError(photoConsentRequiredMessage);
+      setStatus("idle");
+      return;
+    }
+
     if (!isBrowserFriendlyImage(file)) {
       setUploadedRoom(null);
       setUploadError("Please upload a JPG, PNG, or WebP room photo.");
@@ -589,6 +623,17 @@ function RoomwiseWorkspace() {
           </button>
         </section>
 
+        <section className="rail-section support-links" aria-label="Support and legal links">
+          <p className="rail-label">Support</p>
+          <div>
+            {betaLegalLinks.map((link) => (
+              <a key={link.href} href={link.href}>
+                {link.label}
+              </a>
+            ))}
+          </div>
+        </section>
+
         <div className="rail-footer">
           <span className="avatar">RH</span>
           <span>Rory Hayes</span>
@@ -630,8 +675,29 @@ function RoomwiseWorkspace() {
                   Upload from this device or scan the QR code to take a photo on your phone. We will keep the room
                   structure and build a realistic shopping plan after the render.
                 </p>
+                <label className="photo-consent">
+                  <input
+                    checked={photoConsent}
+                    type="checkbox"
+                    onChange={(event) => {
+                      setPhotoConsent(event.target.checked);
+                      if (event.target.checked && uploadError === photoConsentRequiredMessage) {
+                        setUploadError(null);
+                      }
+                    }}
+                  />
+                  <span>
+                    <strong>{photoConsentLabel}</strong>
+                    <small>{phoneCaptureConsentDetail}</small>
+                  </span>
+                </label>
                 <div className="upload-actions">
-                  <button className="primary-button" type="button" onClick={() => fileInputRef.current?.click()}>
+                  <button
+                    className="primary-button"
+                    disabled={!photoConsent}
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
                     <Upload size={18} />
                     Upload photo
                   </button>
@@ -641,6 +707,7 @@ function RoomwiseWorkspace() {
                 </div>
               </div>
               <div className="qr-card">
+                <ShieldCheck size={19} />
                 <img src={qrUrl} alt="QR code for phone room upload" />
                 <strong>Use your phone camera</strong>
                 <span>Scan to upload into this session.</span>
