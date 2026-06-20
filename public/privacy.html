@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Roomwise privacy notice for uploaded room photos, local workspace storage, AI rendering, and support contact."
+    />
+    <title>Roomwise Privacy Notice</title>
+    <style>
+      :root {
+        color: #242520;
+        background: #f7f5ef;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        line-height: 1.6;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      main {
+        width: min(860px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 56px 0 72px;
+      }
+
+      a {
+        color: #343d22;
+        font-weight: 750;
+      }
+
+      h1,
+      h2 {
+        line-height: 1.08;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: clamp(36px, 7vw, 64px);
+      }
+
+      h2 {
+        margin: 36px 0 10px;
+        font-size: 22px;
+      }
+
+      p,
+      li {
+        color: #5f5d55;
+        font-size: 16px;
+      }
+
+      .back-link,
+      .updated {
+        color: #77756c;
+        font-size: 14px;
+      }
+
+      .notice {
+        margin-top: 24px;
+        padding: 16px;
+        border: 1px solid #e0dbd1;
+        border-radius: 8px;
+        background: #fffdfa;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <a class="back-link" href="/">Back to Roomwise</a>
+      <h1>Privacy notice</h1>
+      <p class="updated">Last updated: 20 June 2026</p>
+
+      <section class="notice">
+        <p>
+          Roomwise is currently a beta interior-design tool. This notice explains how the app handles room photos,
+          design preferences, shopping selections, and support messages before the product is sold to customers.
+        </p>
+      </section>
+
+      <h2>Information the app handles</h2>
+      <ul>
+        <li>Room photos uploaded from your device or through the phone-capture link.</li>
+        <li>Room type, style, palette, budget, location, and notes about what to keep or avoid.</li>
+        <li>Selected products and shopping-list actions saved locally in your browser.</li>
+        <li>Basic technical data such as request paths and status codes recorded by Vercel runtime logs.</li>
+      </ul>
+
+      <h2>How room photos are used</h2>
+      <p>
+        Room photos are used to preview your room, transfer a photo from phone to desktop, and, when AI rendering is
+        enabled, request a redesigned after image. Do not upload photos containing people, private documents, valuables,
+        or anything you do not want processed for a design preview.
+      </p>
+
+      <h2>Local storage</h2>
+      <p>
+        Roomwise saves lightweight workspace state in your browser so preferences and shopping picks can survive a page
+        refresh. This includes design preferences and selected product IDs, not full room photos. You can clear this
+        state with the Reset workspace control or through your browser settings.
+      </p>
+
+      <h2>AI processing</h2>
+      <p>
+        When live rendering is enabled, Roomwise sends the room image and design brief to the configured AI image
+        provider to generate an after render. In demo mode, AI rendering is disabled and the app shows a demo notice.
+      </p>
+
+      <h2>Shopping links</h2>
+      <p>
+        Shopping recommendations are provided to help you recreate a room concept. Product availability, pricing,
+        delivery, dimensions, and suitability must be checked with the retailer before purchase.
+      </p>
+
+      <h2>Data retention</h2>
+      <p>
+        The current beta uses short-lived in-memory phone-capture storage and local browser storage. Production account
+        storage is not enabled yet. Before taking paying customers, Roomwise should add account controls for saved
+        projects, deletion, and export.
+      </p>
+
+      <h2>Contact</h2>
+      <p>
+        For privacy, support, or deletion requests during beta testing, contact the Roomwise operator directly at
+        <a href="mailto:roryh1@gmail.com">roryh1@gmail.com</a>.
+      </p>
+    </main>
+  </body>
+</html>
