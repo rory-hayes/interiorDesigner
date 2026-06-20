@@ -8,6 +8,7 @@ import {
   saveCaptureRecord,
 } from "../api/_captureStore";
 import { isSupportedRoomImageDataUrl, roomImageDataUrlMaxLength } from "../api/_imageDataUrl";
+import { setNoStoreCacheHeaders } from "../api/_privacyHeaders";
 import { normalizeRenderRequest } from "../api/_renderRequest";
 import { buildRoomRenderPrompt } from "./renderPrompt";
 
@@ -26,6 +27,8 @@ interface OpenAIImagesResponse {
 }
 
 app.get("/api/health", (_request, response) => {
+  setNoStoreCacheHeaders(response);
+
   response.json({
     ok: true,
     openaiConfigured: Boolean(process.env.OPENAI_API_KEY),
@@ -34,6 +37,8 @@ app.get("/api/health", (_request, response) => {
 });
 
 app.get("/api/capture-sessions/:sessionId", (request, response) => {
+  setNoStoreCacheHeaders(response);
+
   const { sessionId } = request.params;
 
   if (!isValidCaptureSessionId(sessionId)) {
@@ -48,6 +53,8 @@ app.get("/api/capture-sessions/:sessionId", (request, response) => {
 });
 
 app.post("/api/capture-sessions/:sessionId/photo", (request, response) => {
+  setNoStoreCacheHeaders(response);
+
   const { sessionId } = request.params;
   const body = request.body as {
     imageDataUrl?: string;
@@ -87,6 +94,8 @@ app.post("/api/capture-sessions/:sessionId/photo", (request, response) => {
 });
 
 app.post("/api/generate-room-render", async (request, response) => {
+  setNoStoreCacheHeaders(response);
+
   const body = request.body as {
     imageDataUrl?: string;
   };
