@@ -30,6 +30,11 @@ import {
   swapProduct,
 } from "./lib/recommendations";
 import { copyShoppingList, formatCurrency } from "./lib/share";
+import {
+  clearPersistedWorkspace,
+  readPersistedWorkspace,
+  savePersistedWorkspace,
+} from "./lib/workspacePersistence";
 import type {
   GeneratedRender,
   GenerationStatus,
@@ -56,6 +61,31 @@ const statusSequence: GenerationStatus[] = ["analyzing", "matching", "rendering"
 const styleNames = new Map(styles.map((style) => [style.id, style.label]));
 const paletteNames = new Map(palettes.map((palette) => [palette.id, palette.label]));
 const roomTypeNames = new Map(roomTypes.map((room) => [room.id, room.label]));
+
+function getInitialPreferences() {
+  const persisted = readPersistedWorkspace();
+
+  return {
+    ...initialPreferences,
+    ...persisted.preferences,
+  };
+}
+
+function getInitialConceptId(): RoomConcept["id"] {
+  const persisted = readPersistedWorkspace();
+  const conceptId = persisted.selectedConceptId;
+
+  return concepts.some((concept) => concept.id === conceptId) ? conceptId! : "warm-minimal";
+}
+
+function getInitialSelectedProducts() {
+  const persisted = readPersistedWorkspace();
+  const selectedIds = persisted.selectedProductIds ?? [];
+
+  return selectedIds
+    .map((productId) => products.find((product) => product.id === productId))
+    .filter((product): product is Product => Boolean(product));
+}
 
 function createSessionId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -197,10 +227,10 @@ export default function App() {
 }
 
 function RoomwiseWorkspace() {
-  const [preferences, setPreferences] = useState<ProjectPreferences>(initialPreferences);
-  const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
+  const [preferences, setPreferences] = useState<ProjectPreferences>(getInitialPreferences);
+  const [selectedProducts, setSelectedProducts] = useState<Product[]>(getInitialSelectedProducts);
   const [status, setStatus] = useState<GenerationStatus>("idle");
-  const [selectedConceptId, setSelectedConceptId] = useState<RoomConcept["id"]>("warm-minimal");
+  const [selectedConceptId, setSelectedConceptId] = useState<RoomConcept["id"]>(getInitialConceptId);
   const [uploadedRoom, setUploadedRoom] = useState<UploadedRoom | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [generatedRender, setGeneratedRender] = useState<GeneratedRender | null>(null);
@@ -223,7 +253,7 @@ function RoomwiseWorkspace() {
     [captureSessionId],
   );
   const qrUrl = useMemo(() => buildQrUrl(captureUrl), [captureUrl]);
-  const hasPlan = status === "ready" && selectedProducts.length > 0;
+  const hasPlan = selectedProducts.length > 0;
   const displayedRoomUrl = previewMode === "after" && generatedRender ? generatedRender.imageUrl : uploadedRoom?.url;
 
   useEffect(() => {
@@ -238,6 +268,14 @@ function RoomwiseWorkspace() {
   useEffect(() => {
     void checkIntegrationMode().then(setIntegrationMode);
   }, []);
+
+  useEffect(() => {
+    savePersistedWorkspace({
+      preferences,
+      selectedConceptId,
+      selectedProductIds: selectedProducts.map((product) => product.id),
+    });
+  }, [preferences, selectedConceptId, selectedProducts]);
 
   useEffect(() => {
     const interval = window.setInterval(async () => {
@@ -456,6 +494,27 @@ function RoomwiseWorkspace() {
     setShareState("idle");
   }
 
+  function handleResetWorkspace() {
+    timers.current.forEach(window.clearTimeout);
+    timers.current = [];
+
+    if (uploadedRoom?.objectUrl) {
+      URL.revokeObjectURL(uploadedRoom.url);
+    }
+
+    clearPersistedWorkspace();
+    setPreferences(initialPreferences);
+    setSelectedProducts([]);
+    setSelectedConceptId("warm-minimal");
+    setUploadedRoom(null);
+    setUploadError(null);
+    setGeneratedRender(null);
+    setGenerationError(null);
+    setShareState("idle");
+    setPreviewMode("before");
+    setStatus("idle");
+  }
+
   async function handleShare() {
     try {
       await copyShoppingList({
@@ -515,17 +574,19 @@ function RoomwiseWorkspace() {
           <ArrowRight size={16} />
         </button>
 
-        <section className="rail-section saved-projects" aria-label="Saved projects">
-          <p className="rail-label">Saved projects</p>
-          {["Scandi bedroom", "Dining refresh", "Home office"].map((project, index) => (
-            <button key={project} type="button">
-              <span className="saved-thumb" />
-              <span>
-                <strong>{project}</strong>
-                <small>Edited {index + 2}d ago</small>
-              </span>
-            </button>
-          ))}
+        <section className="rail-section workspace-save" aria-label="Workspace save status">
+          <p className="rail-label">Workspace</p>
+          <div className="save-state">
+            <Check size={17} />
+            <span>
+              <strong>Saved on this device</strong>
+              <small>Preferences and shopping picks restore on refresh.</small>
+            </span>
+          </div>
+          <button type="button" onClick={handleResetWorkspace}>
+            <RefreshCcw size={14} />
+            Reset workspace
+          </button>
         </section>
 
         <div className="rail-footer">
