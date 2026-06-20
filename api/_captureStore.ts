@@ -9,6 +9,7 @@ interface CaptureRecord {
 }
 
 const captureMaxAgeMs = 30 * 60 * 1000;
+const captureMaxSessions = 100;
 const captureMaxImageDataUrlLength = roomImageDataUrlMaxLength;
 const captureSessionIdPattern = /^[a-zA-Z0-9-]{6,80}$/;
 
@@ -38,10 +39,32 @@ export function cleanupExpiredCaptureSessions(now = Date.now()) {
   }
 }
 
+function trimCaptureSessions() {
+  while (captureSessions.size > captureMaxSessions) {
+    const oldestSessionId = captureSessions.keys().next().value as string | undefined;
+
+    if (!oldestSessionId) {
+      return;
+    }
+
+    captureSessions.delete(oldestSessionId);
+  }
+}
+
 export function getCaptureRecord(sessionId: string, now = Date.now()) {
   cleanupExpiredCaptureSessions(now);
 
   return captureSessions.get(sessionId) ?? null;
+}
+
+export function consumeCaptureRecord(sessionId: string, now = Date.now()) {
+  const capture = getCaptureRecord(sessionId, now);
+
+  if (capture) {
+    captureSessions.delete(sessionId);
+  }
+
+  return capture;
 }
 
 export function saveCaptureRecord(
@@ -54,7 +77,8 @@ export function saveCaptureRecord(
     ...capture,
     uploadedAt: new Date(now).toISOString(),
   });
+  trimCaptureSessions();
 }
 
-export { captureMaxAgeMs, captureMaxImageDataUrlLength };
+export { captureMaxAgeMs, captureMaxImageDataUrlLength, captureMaxSessions };
 export type { CaptureRecord };
