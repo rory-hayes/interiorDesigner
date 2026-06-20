@@ -13,6 +13,7 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - The temporary phone-capture bridge validates session IDs and image data, expires stale uploads, caps in-memory records, and removes each photo after the desktop session reads it once.
 - Render requests validate the uploaded image, known preference enums, budget range, concept fields, and bounded free-text notes before any live OpenAI call.
 - Render requests with missing or malformed bodies return controlled 400 errors instead of uncaught handler exceptions.
+- Live render requests are rate-limited per client on each warm serverless instance to reduce accidental beta cost spikes.
 - Dynamic API responses for health, phone capture, upload, and render generation explicitly send no-store cache headers.
 - API endpoints reject unsupported methods with explicit `Allow` headers where applicable.
 - Live render API handling preserves useful OpenAI upstream error messages even when the provider returns a non-JSON response.
@@ -69,6 +70,7 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - Phone capture records are removed from temporary storage after first desktop read.
 - Missing render request bodies return a controlled 400 response.
 - Invalid render preferences are rejected before an OpenAI request is attempted.
+- Repeated live render requests return 429 with rate-limit headers after the beta limit is exceeded.
 - Unsupported API methods return 405 with an `Allow` header.
 - Non-JSON OpenAI upstream failures are converted into readable render errors.
 - Dynamic API responses return `Cache-Control: no-store, max-age=0`.
