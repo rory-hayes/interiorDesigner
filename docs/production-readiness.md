@@ -7,7 +7,7 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - Production URL: https://interior-designer-nu.vercel.app/
 - Vercel project: `interior-designer`
 - Current branch: `codex/roomwise-mvp`
-- The UI, upload flow, QR phone-capture path, shopping-plan interface, workspace persistence, security headers, and demo-mode API health route are deployed.
+- The UI, upload flow, explicit photo consent, QR phone-capture path, shopping-plan interface, workspace persistence, support/legal links, security headers, and demo-mode API health route are deployed.
 - `/api/health` currently reports `mode: "demo"` until `OPENAI_API_KEY` is configured in Vercel.
 - Beta privacy and terms pages are available at `/privacy.html` and `/terms.html`.
 
@@ -42,8 +42,8 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 
 6. Finish commercial basics
    - Beta privacy policy and terms are now published, but they still need qualified legal review before paid launch.
-   - Add explicit photo-upload consent in the app UI.
-   - Add support/contact path inside the app chrome.
+   - Explicit photo-upload consent is now required before desktop and phone-capture uploads.
+   - Support, privacy, and terms links are now available in the app chrome.
    - Add analytics for funnel drop-off and generation failures.
    - Add cost tracking per render.
 
@@ -51,6 +51,9 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 
 - Desktop viewport loads without document scroll.
 - Mobile viewport loads without document scroll.
+- Desktop photo upload is disabled until photo consent is confirmed.
+- Phone-capture photo upload is disabled until photo consent is confirmed.
+- App chrome links to support, privacy, and terms.
 - Phone capture page opens from QR link.
 - `/privacy.html` returns 200.
 - `/terms.html` returns 200.
