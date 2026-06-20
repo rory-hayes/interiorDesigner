@@ -8,7 +8,7 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - Vercel project: `interior-designer`
 - Current branch: `codex/roomwise-mvp`
 - The UI, upload flow, explicit photo consent, QR phone-capture path, shopping-plan interface, workspace persistence, support/legal links, security headers, and demo-mode API health route are deployed.
-- Desktop and phone uploads normalize large room photos in the browser before preview, capture transfer, or live render submission.
+- A browser-side room photo normalization utility and tests are prepared; the upload surfaces still need the final `App.tsx` wiring published before this is live.
 - A local beta insights panel tracks funnel events and estimated live render spend on the user's device.
 - The temporary phone-capture bridge validates session IDs and image data, expires stale uploads, caps in-memory records, and removes each photo after the desktop session reads it once.
 - Render requests validate the uploaded image, known preference enums, budget range, concept fields, and bounded free-text notes before any live OpenAI call.
