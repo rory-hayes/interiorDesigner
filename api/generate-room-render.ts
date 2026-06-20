@@ -1,6 +1,7 @@
 import { isSupportedRoomImageDataUrl, roomImageDataUrlMaxLength } from "./_imageDataUrl.js";
 import { readOpenAIImagesResponse } from "./_openAIImagesResponse.js";
 import { setNoStoreCacheHeaders } from "./_privacyHeaders.js";
+import { consumeRenderRateLimit, getRenderRateLimitKey } from "./_renderRateLimit.js";
 import { normalizeRenderRequest } from "./_renderRequest.js";
 import { buildRoomRenderPrompt } from "../server/renderPrompt.js";
 
@@ -54,6 +55,19 @@ export default async function handler(request: any, response: any) {
   if (!apiKey) {
     response.status(503).json({
       error: "OpenAI API key is not configured. Add OPENAI_API_KEY in Vercel project settings.",
+    });
+    return;
+  }
+
+  const rateLimit = consumeRenderRateLimit(getRenderRateLimitKey(request));
+  response.setHeader("X-RateLimit-Limit", String(rateLimit.limit));
+  response.setHeader("X-RateLimit-Remaining", String(rateLimit.remaining));
+  response.setHeader("X-RateLimit-Reset", String(Math.ceil(rateLimit.resetAt / 1000)));
+
+  if (!rateLimit.allowed) {
+    response.setHeader("Retry-After", String(rateLimit.retryAfterSeconds));
+    response.status(429).json({
+      error: "Too many render requests. Please wait before generating another redesign.",
     });
     return;
   }
