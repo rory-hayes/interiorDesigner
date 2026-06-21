@@ -7,9 +7,10 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - Production URL: https://interior-designer-nu.vercel.app/
 - Vercel project: `interior-designer`
 - Current branch: `codex/roomwise-mvp`
-- The UI, upload flow, explicit photo consent, QR phone-capture path, shopping-plan interface, workspace persistence, support/legal links, security headers, and demo-mode API health route are deployed.
+- The UI, guided upload workflow, explicit photo consent, QR phone-capture path, shopping-plan interface, workspace persistence, support/legal links, security headers, and demo-mode API health route are deployed.
+- Customer-facing app chrome now uses a calmer single-screen workflow header for Photo, Brief, and Redesign instead of exposing beta analytics on the main surface.
 - Browser-side fetch protection normalizes large room-photo payloads before capture upload or live render submission.
-- A local beta insights panel tracks funnel events and estimated live render spend on the user's device.
+- Local beta telemetry still tracks funnel events and estimated live render spend on the user's device for internal diagnostics.
 - The temporary phone-capture bridge validates session IDs and image data, routes phone uploads through the same session endpoint the desktop polls, expires stale uploads, caps in-memory records, and removes each photo after the desktop session reads it once.
 - Render requests validate the uploaded image, known preference enums, budget range, concept fields, and bounded free-text notes before any live OpenAI call.
 - Render requests with missing or malformed bodies return controlled 400 errors instead of uncaught handler exceptions.
@@ -54,7 +55,7 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
    - Beta privacy policy and terms are now published, but they still need qualified legal review before paid launch.
    - Explicit photo-upload consent is now required before desktop and phone-capture uploads.
    - Support, privacy, and terms links are now available in the app chrome.
-   - Local beta analytics and estimated render cost tracking are available in-app.
+   - Local beta analytics and estimated render cost tracking remain available as internal telemetry helpers.
    - Add server-side/product analytics before paid launch so funnel and failure reporting survives device changes.
 
 ## Verification Checklist
@@ -64,7 +65,7 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - Desktop photo upload is disabled until photo consent is confirmed.
 - Phone-capture photo upload is disabled until photo consent is confirmed.
 - App chrome links to support, privacy, and terms.
-- App chrome shows local beta insights for runs, failures, photos, and estimated render spend.
+- App chrome shows the Photo, Brief, and Redesign workflow instead of a customer-visible beta analytics widget.
 - Phone capture page opens from QR link.
 - Large desktop and phone room-photo API payloads are compressed before capture upload or render submission.
 - Phone capture POST and desktop polling GET share the canonical `/api/capture-sessions/:sessionId` endpoint.
