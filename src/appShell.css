@@ -1,0 +1,422 @@
+.workspace-shell {
+  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-rows: 76px minmax(0, 1fr);
+  grid-template-areas:
+    "header header"
+    "stage drawer";
+  background: #f4f2ec;
+}
+
+.workspace-header {
+  grid-area: header;
+  display: grid;
+  grid-template-columns: minmax(220px, auto) minmax(360px, 1fr) auto;
+  gap: 24px;
+  align-items: center;
+  min-width: 0;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 253, 250, 0.96);
+}
+
+.project-rail[hidden] {
+  display: none !important;
+}
+
+.header-brand {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.header-brand .wordmark {
+  padding: 0;
+}
+
+.header-brand > span {
+  overflow: hidden;
+  padding-left: 42px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-step {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.workflow-step > span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.workflow-step div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.workflow-step strong,
+.workflow-step small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-step strong {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.1;
+}
+
+.workflow-step small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.workflow-step.active {
+  border-color: var(--border);
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(31, 30, 25, 0.06);
+}
+
+.workflow-step.active > span,
+.workflow-step.complete > span {
+  color: #ffffff;
+  background: var(--olive-dark);
+}
+
+.workflow-step.complete {
+  color: var(--olive-dark);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+}
+
+.header-actions .mode-pill {
+  margin-top: 0;
+}
+
+.header-links {
+  display: flex;
+  gap: 4px;
+}
+
+.header-links a {
+  padding: 6px 7px;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.header-links a:hover {
+  color: var(--text);
+  background: var(--surface-soft);
+}
+
+.room-stage {
+  grid-area: stage;
+  grid-template-rows: 70px minmax(0, 1fr) 88px;
+  overflow: hidden;
+  background: #f4f2ec;
+}
+
+.stage-topbar {
+  min-height: 0;
+  padding: 12px 24px;
+  border-bottom: 0;
+  background: #f4f2ec;
+}
+
+.preview-segment {
+  min-width: 230px;
+  background: #ece8de;
+}
+
+.room-viewport {
+  min-height: 0;
+  margin: 0 24px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-soft);
+}
+
+.room-viewport > img {
+  min-height: 0;
+}
+
+.upload-hero {
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 36px;
+  max-width: 890px;
+  padding: 40px 44px;
+}
+
+.upload-hero h1 {
+  font-size: clamp(34px, 4vw, 54px);
+  line-height: 1;
+}
+
+.upload-hero p {
+  margin-top: 14px;
+}
+
+.onboarding-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.onboarding-strip span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--olive-dark);
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.stage-actionbar {
+  gap: 18px;
+  min-height: 0;
+  padding: 14px 24px 18px;
+  border-top: 0;
+  background: #f4f2ec;
+}
+
+.design-drawer {
+  grid-area: drawer;
+  gap: 22px;
+  height: auto;
+  margin: 24px 24px 24px 0;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-soft);
+}
+
+.drawer-section.intro {
+  padding-right: 0;
+}
+
+.drawer-section h2,
+.shopping-head h2 {
+  font-size: 21px;
+}
+
+.preference-stack {
+  gap: 14px;
+}
+
+.quiet-field {
+  padding-top: 14px;
+}
+
+.quiet-field select {
+  min-height: 48px;
+}
+
+.quiet-field > svg:last-child {
+  bottom: 15px;
+}
+
+.must-keep-field textarea {
+  min-height: 78px;
+}
+
+.locked-shopping {
+  padding: 15px;
+}
+
+.product-list {
+  max-height: 300px;
+}
+
+@media (max-width: 1220px) {
+  .workspace-shell {
+    grid-template-columns: minmax(0, 1fr) 330px;
+    grid-template-rows: 76px minmax(0, 1fr);
+    grid-template-areas:
+      "header header"
+      "stage drawer";
+  }
+
+  .workspace-header {
+    grid-template-columns: minmax(190px, auto) minmax(300px, 1fr) auto;
+    gap: 14px;
+    padding: 0 18px;
+  }
+
+  .workflow-step {
+    padding: 8px;
+  }
+
+  .header-links {
+    display: none;
+  }
+
+  .design-drawer {
+    grid-column: auto;
+    margin: 18px 18px 18px 0;
+    padding: 18px;
+    border: 1px solid var(--border);
+  }
+
+  .preference-stack {
+    grid-template-columns: 1fr;
+  }
+
+  .must-keep-field,
+  .locked-shopping,
+  .shopping-plan {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 920px) {
+  .workspace-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: 112px minmax(0, 1fr) 260px;
+    grid-template-areas:
+      "header"
+      "stage"
+      "drawer";
+  }
+
+  .workspace-header {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    align-content: center;
+    padding: 10px 14px;
+  }
+
+  .header-brand {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+  }
+
+  .header-brand > span {
+    padding-left: 0;
+    text-align: right;
+  }
+
+  .header-actions {
+    display: none;
+  }
+
+  .workflow-steps {
+    gap: 6px;
+  }
+
+  .workflow-step {
+    grid-template-columns: 22px minmax(0, 1fr);
+    min-height: 42px;
+    padding: 7px;
+  }
+
+  .workflow-step > span {
+    width: 22px;
+    height: 22px;
+  }
+
+  .workflow-step small {
+    font-size: 10px;
+  }
+
+  .room-stage {
+    grid-template-rows: 52px minmax(0, 1fr) 72px;
+  }
+
+  .stage-topbar {
+    padding: 8px 14px;
+  }
+
+  .room-viewport {
+    margin: 0 14px;
+  }
+
+  .upload-hero {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 18px 20px;
+  }
+
+  .design-drawer {
+    height: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 12px 14px;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .drawer-section h2 {
+    font-size: 17px;
+  }
+}
+
+@media (max-width: 640px) {
+  .workspace-shell {
+    grid-template-rows: 102px minmax(0, 1fr) 246px;
+  }
+
+  .wordmark {
+    font-size: 12px;
+  }
+
+  .header-brand > span,
+  .workflow-step small,
+  .onboarding-strip {
+    display: none;
+  }
+
+  .workflow-step {
+    grid-template-columns: 22px minmax(0, 1fr);
+  }
+
+  .workflow-step strong {
+    font-size: 12px;
+  }
+}
