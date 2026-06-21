@@ -19,7 +19,6 @@ import {
   Sparkles,
   Trash2,
   Upload,
-  X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { concepts, palettes, products, roomTypes, styles } from "./data/catalog";
@@ -32,9 +31,7 @@ import {
 } from "./lib/betaSafeguards";
 import {
   appendBetaTelemetryEvent,
-  clearBetaTelemetry,
   readBetaTelemetry,
-  summarizeBetaTelemetry,
   type BetaTelemetryEventName,
 } from "./lib/betaTelemetry";
 import {
@@ -43,6 +40,7 @@ import {
   removeProduct,
   swapProduct,
 } from "./lib/recommendations";
+import { normalizeRoomPhoto, readFileAsDataUrl } from "./lib/roomPhoto";
 import { copyShoppingList, formatCurrency } from "./lib/share";
 import {
   clearPersistedWorkspace,
@@ -113,15 +111,6 @@ function isGenerating(status: GenerationStatus) {
   return status === "analyzing" || status === "matching" || status === "rendering";
 }
 
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("Could not read that image."));
-    reader.readAsDataURL(file);
-  });
-}
-
 function isBrowserFriendlyImage(file: File) {
   const lowerName = file.name.toLowerCase();
 
@@ -163,17 +152,17 @@ function CaptureUpload({ sessionId }: { sessionId: string }) {
     setMessage("Uploading your room photo to the design session...");
 
     try {
-      const imageDataUrl = await readFileAsDataUrl(file);
-      const response = await fetch(`/api/capture-sessions/${sessionId}/photo`, {
+      const roomPhoto = await normalizeRoomPhoto(file);
+      const response = await fetch(`/api/capture-sessions/${sessionId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          imageDataUrl,
+          imageDataUrl: roomPhoto.dataUrl,
           name: file.name,
-          type: file.type || "image",
-          size: file.size,
+          type: roomPhoto.type,
+          size: roomPhoto.size,
         }),
       });
 
@@ -291,15 +280,26 @@ function RoomwiseWorkspace() {
   const qrUrl = useMemo(() => buildQrUrl(captureUrl), [captureUrl]);
   const hasPlan = selectedProducts.length > 0;
   const displayedRoomUrl = previewMode === "after" && generatedRender ? generatedRender.imageUrl : uploadedRoom?.url;
-  const betaInsights = useMemo(() => summarizeBetaTelemetry(telemetryEvents), [telemetryEvents]);
+  const workflowSteps = [
+    {
+      label: "Photo",
+      detail: uploadedRoom ? "Ready" : "Upload or scan",
+      state: uploadedRoom ? "complete" : "active",
+    },
+    {
+      label: "Brief",
+      detail: `${styleNames.get(preferences.style)} · ${formatCurrency(preferences.budget)}`,
+      state: uploadedRoom && !hasPlan ? "active" : hasPlan ? "complete" : "idle",
+    },
+    {
+      label: "Redesign",
+      detail: hasPlan ? `${summary.itemCount} matched items` : "Generate and shop",
+      state: isGenerating(status) || hasPlan ? "active" : "idle",
+    },
+  ] as const;
 
   function trackBetaEvent(name: BetaTelemetryEventName, mode: IntegrationMode | "unknown" = integrationMode) {
     setTelemetryEvents(appendBetaTelemetryEvent({ name, mode }));
-  }
-
-  function handleResetBetaInsights() {
-    clearBetaTelemetry();
-    setTelemetryEvents([]);
   }
 
   useEffect(() => {
@@ -473,22 +473,20 @@ function RoomwiseWorkspace() {
       return;
     }
 
-    const objectUrl = URL.createObjectURL(file);
-
     try {
-      const dataUrl = await readFileAsDataUrl(file);
+      const roomPhoto = await normalizeRoomPhoto(file);
 
       if (uploadedRoom?.objectUrl) {
         URL.revokeObjectURL(uploadedRoom.url);
       }
 
       setUploadedRoom({
-        url: objectUrl,
+        url: roomPhoto.dataUrl,
         name: file.name,
-        type: file.type || "image",
-        size: file.size,
-        objectUrl: true,
-        dataUrl,
+        type: roomPhoto.type,
+        size: roomPhoto.size,
+        objectUrl: false,
+        dataUrl: roomPhoto.dataUrl,
       });
       setPreviewMode("before");
       setGeneratedRender(null);
@@ -499,9 +497,8 @@ function RoomwiseWorkspace() {
       setStatus("idle");
       trackBetaEvent("photo_uploaded", integrationMode);
     } catch {
-      URL.revokeObjectURL(objectUrl);
       setUploadedRoom(null);
-      setUploadError("Could not read that image. Please try another JPG, PNG, or WebP room photo.");
+      setUploadError("Could not prepare that image. Please try a smaller JPG, PNG, or WebP room photo.");
       setStatus("idle");
     }
   }
@@ -604,7 +601,46 @@ function RoomwiseWorkspace() {
 
   return (
     <main className="workspace-shell" aria-label="Roomwise room redesign workspace">
-      <aside className="project-rail" aria-label="Project navigation">
+      <header className="workspace-header">
+        <div className="header-brand">
+          <div className="wordmark">
+            <span className="wordmark-mark">R</span>
+            <span>Roomwise</span>
+          </div>
+          <span>{roomTypeNames.get(preferences.roomType) ?? "Room"} redesign</span>
+        </div>
+
+        <ol className="workflow-steps" aria-label="Redesign workflow">
+          {workflowSteps.map((step, index) => (
+            <li className={`workflow-step ${step.state}`} key={step.label}>
+              <span>{index + 1}</span>
+              <div>
+                <strong>{step.label}</strong>
+                <small>{step.detail}</small>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <div className="header-actions">
+          <span className={integrationMode === "live" ? "mode-pill live" : "mode-pill"}>
+            {integrationMode === "checking"
+              ? "Checking OpenAI"
+              : integrationMode === "live"
+                ? "AI render ready"
+                : "Demo mode"}
+          </span>
+          <nav className="header-links" aria-label="Support and legal links">
+            {betaLegalLinks.map((link) => (
+              <a key={link.href} href={link.href}>
+                {link.label}
+              </a>
+            ))}
+          </nav>
+        </div>
+      </header>
+
+      <aside className="project-rail" aria-hidden="true" hidden>
         <div className="wordmark">
           <span className="wordmark-mark">R</span>
           <span>Roomwise</span>
@@ -708,12 +744,17 @@ function RoomwiseWorkspace() {
           ) : (
             <div className="upload-hero">
               <div>
-                <p className="eyebrow">Start with one room photo</p>
-                <h1>Transform your room into a design you can actually buy.</h1>
+                <p className="eyebrow">Step 1 · Room photo</p>
+                <h1>Start with one clear photo.</h1>
                 <p>
-                  Upload from this device or scan the QR code to take a photo on your phone. We will keep the room
-                  structure and build a realistic shopping plan after the render.
+                  Upload here or scan with your phone. Roomwise keeps the room structure, then builds a realistic
+                  redesign and shopping plan around your budget.
                 </p>
+                <div className="onboarding-strip" aria-label="How Roomwise works">
+                  <span>Add photo</span>
+                  <span>Set brief</span>
+                  <span>Generate and shop</span>
+                </div>
                 <label className="photo-consent">
                   <input
                     checked={photoConsent}
@@ -825,47 +866,9 @@ function RoomwiseWorkspace() {
       </section>
 
       <aside className="design-drawer" aria-label="Design preferences and shopping plan">
-        <button className="close-button" type="button" aria-label="Close preferences">
-          <X size={20} />
-        </button>
-
         <section className="drawer-section intro">
-          <p className="eyebrow">Design preferences</p>
-          <h2>Tell us the style, budget, and priorities.</h2>
-          <span className={integrationMode === "live" ? "mode-pill live" : "mode-pill"}>
-            {integrationMode === "checking"
-              ? "Checking OpenAI"
-              : integrationMode === "live"
-                ? "AI render ready"
-                : "Demo mode"}
-          </span>
-        </section>
-
-        <section className="beta-insights" aria-label="Beta analytics and cost tracking">
-          <div className="beta-insights-head">
-            <p className="eyebrow">Beta insights</p>
-            <button type="button" onClick={handleResetBetaInsights}>
-              Reset
-            </button>
-          </div>
-          <dl>
-            <div>
-              <dt>Runs</dt>
-              <dd>{betaInsights.generationAttempts}</dd>
-            </div>
-            <div>
-              <dt>Failures</dt>
-              <dd>{betaInsights.generationFailures}</dd>
-            </div>
-            <div>
-              <dt>Photos</dt>
-              <dd>{betaInsights.photosAdded}</dd>
-            </div>
-            <div>
-              <dt>Est. spend</dt>
-              <dd>${betaInsights.estimatedRenderCostUsd.toFixed(2)}</dd>
-            </div>
-          </dl>
+          <p className="eyebrow">Step 2 · Design brief</p>
+          <h2>Tell us what should change.</h2>
         </section>
 
         <section className="preference-stack" aria-label="Room brief">
