@@ -49,10 +49,8 @@ app.get("/api/capture-sessions/:sessionId", (request, response) => {
   });
 });
 
-app.post("/api/capture-sessions/:sessionId/photo", (request, response) => {
-  setNoStoreCacheHeaders(response);
-
-  const { sessionId } = request.params;
+function handleCapturePhotoPost(request: express.Request, response: express.Response) {
+  const sessionId = String(request.params.sessionId ?? "");
   const body = request.body as {
     imageDataUrl?: string;
     name?: string;
@@ -88,6 +86,16 @@ app.post("/api/capture-sessions/:sessionId/photo", (request, response) => {
   });
 
   response.json({ ok: true });
+}
+
+app.post("/api/capture-sessions/:sessionId", (request, response) => {
+  setNoStoreCacheHeaders(response);
+  handleCapturePhotoPost(request, response);
+});
+
+app.post("/api/capture-sessions/:sessionId/photo", (request, response) => {
+  setNoStoreCacheHeaders(response);
+  handleCapturePhotoPost(request, response);
 });
 
 app.post("/api/generate-room-render", async (request, response) => {
