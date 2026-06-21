@@ -1,6 +1,6 @@
 import { normalizeRoomImageDataUrl } from "./roomPhoto";
 
-const capturePhotoPathPattern = /\/api\/capture-sessions\/[^/]+\/photo$/;
+const capturePhotoPathPattern = /^\/api\/capture-sessions\/([^/]+)\/photo$/;
 const renderPath = "/api/generate-room-render";
 
 let restoreFetch: (() => void) | null = null;
@@ -9,6 +9,28 @@ function isRoomPhotoEndpoint(url: string) {
   const path = url.startsWith("http") ? new URL(url).pathname : url.split("?")[0];
 
   return path === renderPath || capturePhotoPathPattern.test(path);
+}
+
+function rewriteCapturePhotoEndpoint(url: string) {
+  if (url.startsWith("http")) {
+    const parsedUrl = new URL(url);
+    const match = parsedUrl.pathname.match(capturePhotoPathPattern);
+
+    if (match) {
+      parsedUrl.pathname = `/api/capture-sessions/${match[1]}`;
+    }
+
+    return parsedUrl.toString();
+  }
+
+  const [path, query = ""] = url.split("?");
+  const match = path.match(capturePhotoPathPattern);
+
+  if (!match) {
+    return url;
+  }
+
+  return `/api/capture-sessions/${match[1]}${query ? `?${query}` : ""}`;
 }
 
 function readMethod(input: RequestInfo | URL, init?: RequestInit) {
@@ -29,6 +51,18 @@ function readUrl(input: RequestInfo | URL) {
   }
 
   return String(input);
+}
+
+function readHeaders(input: RequestInfo | URL, init?: RequestInit) {
+  if (init?.headers) {
+    return init.headers;
+  }
+
+  if (typeof Request !== "undefined" && input instanceof Request) {
+    return input.headers;
+  }
+
+  return undefined;
 }
 
 function withJsonContentType(headers: HeadersInit | undefined) {
@@ -96,10 +130,10 @@ export function installRoomPhotoFetchNormalizer() {
         size: normalized.size,
       };
 
-      return originalFetch(input, {
+      return originalFetch(rewriteCapturePhotoEndpoint(url), {
         ...init,
         method: "POST",
-        headers: withJsonContentType(init?.headers),
+        headers: withJsonContentType(readHeaders(input, init)),
         body: JSON.stringify(nextPayload),
       });
     } catch {
