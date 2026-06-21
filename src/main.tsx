@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { installRoomPhotoFetchNormalizer } from "./lib/roomPhotoFetchNormalizer";
 import "./styles.css";
+import "./appShell.css";
 
 installRoomPhotoFetchNormalizer();
 
