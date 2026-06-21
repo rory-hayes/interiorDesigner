@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import captureSessionHandler from "../../api/capture-sessions/[sessionId]";
+import { captureSessions } from "../../api/_captureStore";
 import generateRoomRenderHandler from "../../api/generate-room-render";
 import healthHandler from "../../api/health";
 import { noStoreCacheControl } from "../../api/_privacyHeaders";
@@ -23,6 +25,10 @@ function createJsonResponse() {
 }
 
 describe("API handlers", () => {
+  beforeEach(() => {
+    captureSessions.clear();
+  });
+
   it("rejects non-GET health checks with method metadata", () => {
     const response = createJsonResponse();
 
@@ -42,5 +48,61 @@ describe("API handlers", () => {
     expect(response.statusCode).toBe(400);
     expect(response.headers.get("Cache-Control")).toBe(noStoreCacheControl);
     expect(response.payload).toEqual({ error: "Missing imageDataUrl." });
+  });
+
+  it("stores and consumes phone captures through the canonical session endpoint", () => {
+    const postResponse = createJsonResponse();
+    const imageDataUrl = "data:image/jpeg;base64,YWJjZA==";
+
+    captureSessionHandler(
+      {
+        method: "POST",
+        query: { sessionId: "session-123456" },
+        body: {
+          imageDataUrl,
+          name: "phone-room.jpg",
+          type: "image/jpeg",
+          size: 1234,
+        },
+      },
+      postResponse,
+    );
+
+    expect(postResponse.statusCode).toBe(200);
+    expect(postResponse.headers.get("Cache-Control")).toBe(noStoreCacheControl);
+    expect(postResponse.payload).toEqual({ ok: true });
+
+    const getResponse = createJsonResponse();
+
+    captureSessionHandler(
+      {
+        method: "GET",
+        query: { sessionId: "session-123456" },
+      },
+      getResponse,
+    );
+
+    expect(getResponse.statusCode).toBe(200);
+    expect(getResponse.payload).toMatchObject({
+      ok: true,
+      capture: {
+        imageDataUrl,
+        name: "phone-room.jpg",
+        type: "image/jpeg",
+        size: 1234,
+      },
+    });
+
+    const consumedResponse = createJsonResponse();
+
+    captureSessionHandler(
+      {
+        method: "GET",
+        query: { sessionId: "session-123456" },
+      },
+      consumedResponse,
+    );
+
+    expect(consumedResponse.payload).toEqual({ ok: true, capture: null });
   });
 });
