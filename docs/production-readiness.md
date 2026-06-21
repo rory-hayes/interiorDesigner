@@ -8,9 +8,9 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - Vercel project: `interior-designer`
 - Current branch: `codex/roomwise-mvp`
 - The UI, upload flow, explicit photo consent, QR phone-capture path, shopping-plan interface, workspace persistence, support/legal links, security headers, and demo-mode API health route are deployed.
-- A browser-side room photo normalization utility and tests are prepared; the upload surfaces still need the final `App.tsx` wiring published before this is live.
+- Browser-side fetch protection normalizes large room-photo payloads before capture upload or live render submission.
 - A local beta insights panel tracks funnel events and estimated live render spend on the user's device.
-- The temporary phone-capture bridge validates session IDs and image data, expires stale uploads, caps in-memory records, and removes each photo after the desktop session reads it once.
+- The temporary phone-capture bridge validates session IDs and image data, routes phone uploads through the same session endpoint the desktop polls, expires stale uploads, caps in-memory records, and removes each photo after the desktop session reads it once.
 - Render requests validate the uploaded image, known preference enums, budget range, concept fields, and bounded free-text notes before any live OpenAI call.
 - Render requests with missing or malformed bodies return controlled 400 errors instead of uncaught handler exceptions.
 - Live render requests are rate-limited per client on each warm serverless instance to reduce accidental beta cost spikes.
@@ -66,7 +66,8 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - App chrome links to support, privacy, and terms.
 - App chrome shows local beta insights for runs, failures, photos, and estimated render spend.
 - Phone capture page opens from QR link.
-- Large desktop and phone room photos are compressed before upload/render submission.
+- Large desktop and phone room-photo API payloads are compressed before capture upload or render submission.
+- Phone capture POST and desktop polling GET share the canonical `/api/capture-sessions/:sessionId` endpoint.
 - Phone capture records are removed from temporary storage after first desktop read.
 - Missing render request bodies return a controlled 400 response.
 - Invalid render preferences are rejected before an OpenAI request is attempted.
