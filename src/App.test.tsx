@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
@@ -57,14 +57,16 @@ describe("Roomwise beta safeguards", () => {
     expect(screen.getByRole("link", { name: "Support" }).getAttribute("href")).toBe("mailto:roryh1@gmail.com");
   });
 
-  it("shows local beta analytics and cost tracking", async () => {
+  it("shows a guided redesign workflow instead of beta analytics", async () => {
     render(<App />);
     await waitFor(() => expect(screen.getByText("Demo mode")).toBeTruthy());
 
-    expect(screen.getByText("Beta insights")).toBeTruthy();
-    expect(screen.getByText("Runs")).toBeTruthy();
-    expect(screen.getByText("Failures")).toBeTruthy();
-    expect(screen.getByText("Est. spend")).toBeTruthy();
+    const workflow = screen.getByRole("list", { name: "Redesign workflow" });
+
+    expect(within(workflow).getByText("Photo")).toBeTruthy();
+    expect(within(workflow).getByText("Brief")).toBeTruthy();
+    expect(within(workflow).getByText("Redesign")).toBeTruthy();
+    expect(screen.queryByText("Beta insights")).toBeNull();
   });
 
   it("requires consent before uploading a phone-capture photo", () => {
