@@ -33,6 +33,18 @@ function rewriteCapturePhotoEndpoint(url: string) {
   return `/api/capture-sessions/${match[1]}${query ? `?${query}` : ""}`;
 }
 
+function readHeaders(input: RequestInfo | URL, init?: RequestInit) {
+  if (init?.headers) {
+    return init.headers;
+  }
+
+  if (typeof Request !== "undefined" && input instanceof Request) {
+    return input.headers;
+  }
+
+  return undefined;
+}
+
 function readMethod(input: RequestInfo | URL, init?: RequestInit) {
   if (init?.method) {
     return init.method.toUpperCase();
@@ -51,18 +63,6 @@ function readUrl(input: RequestInfo | URL) {
   }
 
   return String(input);
-}
-
-function readHeaders(input: RequestInfo | URL, init?: RequestInit) {
-  if (init?.headers) {
-    return init.headers;
-  }
-
-  if (typeof Request !== "undefined" && input instanceof Request) {
-    return input.headers;
-  }
-
-  return undefined;
 }
 
 function withJsonContentType(headers: HeadersInit | undefined) {

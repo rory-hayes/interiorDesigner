@@ -7,11 +7,10 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - Production URL: https://interior-designer-nu.vercel.app/
 - Vercel project: `interior-designer`
 - Current branch: `codex/roomwise-mvp`
-- The UI, guided upload workflow, explicit photo consent, QR phone-capture path, shopping-plan interface, workspace persistence, support/legal links, security headers, and demo-mode API health route are deployed.
-- Customer-facing app chrome now uses a calmer single-screen workflow header for Photo, Brief, and Redesign instead of exposing beta analytics on the main surface.
+- The UI, upload flow, explicit photo consent, mobile direct-camera path, desktop QR phone-capture path, shopping-plan interface, workspace persistence, support/legal links, security headers, and demo-mode API health route are deployed.
 - Browser-side fetch protection normalizes large room-photo payloads before capture upload or live render submission.
-- Local beta telemetry still tracks funnel events and estimated live render spend on the user's device for internal diagnostics.
-- The temporary phone-capture bridge validates session IDs and image data, routes phone uploads through the same session endpoint the desktop polls, expires stale uploads, caps in-memory records, and removes each photo after the desktop session reads it once.
+- A local beta insights panel tracks funnel events and estimated live render spend on the user's device.
+- The temporary phone-capture bridge validates session IDs, requires a short-lived project-bound token, routes phone uploads through the same session endpoint the desktop polls, expires stale uploads, caps in-memory records, and removes each photo after the desktop session reads it once.
 - Render requests validate the uploaded image, known preference enums, budget range, concept fields, and bounded free-text notes before any live OpenAI call.
 - Render requests with missing or malformed bodies return controlled 400 errors instead of uncaught handler exceptions.
 - Live render requests are rate-limited per client on each warm serverless instance to reduce accidental beta cost spikes.
@@ -29,33 +28,39 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
    - Redeploy after adding the env vars.
    - Verify `/api/health` returns `mode: "live"`.
 
-2. Verify real image generation
+2. Configure Supabase in Vercel
+   - Apply `docs/supabase-onboarding.sql` in Supabase.
+   - Add `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
+   - Configure Supabase Auth redirect URLs for the deployed domain.
+   - Verify passwordless email/Google auth, project creation, latest-project restore, and private room-photo storage.
+
+3. Verify real image generation
    - Upload a room photo.
    - Run `Generate redesign`.
    - Confirm an after image appears and the shopping list is still generated.
    - Check Vercel runtime logs for OpenAI errors, payload-size failures, or timeouts.
 
-3. Replace volatile phone-capture storage
+4. Replace volatile phone-capture storage
    - Current phone capture uses in-memory serverless storage.
    - Captures are now one-time-read, TTL-limited, and bounded to reduce privacy and memory risk during beta testing.
    - This is acceptable for a demo but not reliable across serverless instances or cold starts.
    - Production should use persistent storage such as Vercel Blob, S3, Supabase Storage, or a database-backed asset table.
 
-4. Add account and project persistence
-   - Save user projects, uploaded images, generated renders, selected shopping lists, and timestamps.
-   - Avoid storing customer room photos only in browser memory.
+5. Complete persistence
+   - User projects and uploaded room images are Supabase-ready.
+   - Save generated renders, selected shopping lists, and timestamps.
    - Add deletion/export controls before taking real customers.
 
-5. Add real product data
+6. Add real product data
    - Current product links are placeholder retailer examples.
    - Replace `src/data/catalog.ts` with affiliate feeds or official retailer APIs where available.
    - Track availability, region, price, product image, dimensions, category, and affiliate URL.
 
-6. Finish commercial basics
+7. Finish commercial basics
    - Beta privacy policy and terms are now published, but they still need qualified legal review before paid launch.
    - Explicit photo-upload consent is now required before desktop and phone-capture uploads.
    - Support, privacy, and terms links are now available in the app chrome.
-   - Local beta analytics and estimated render cost tracking remain available as internal telemetry helpers.
+   - Local beta analytics and estimated render cost tracking are available in-app.
    - Add server-side/product analytics before paid launch so funnel and failure reporting survives device changes.
 
 ## Verification Checklist
@@ -63,10 +68,15 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - Desktop viewport loads without document scroll.
 - Mobile viewport loads without document scroll.
 - Desktop photo upload is disabled until photo consent is confirmed.
+- Mobile app users can take a room photo directly without scanning a QR code.
 - Phone-capture photo upload is disabled until photo consent is confirmed.
+- Phone-capture links missing their project binding are blocked before the user can choose a photo.
+- Example/demo viewers can return to account onboarding from the sample redesign state.
 - App chrome links to support, privacy, and terms.
-- App chrome shows the Photo, Brief, and Redesign workflow instead of a customer-visible beta analytics widget.
+- App chrome shows local beta insights for runs, failures, photos, and estimated render spend.
 - Phone capture page opens from QR link.
+- Desktop QR capture registers a short-lived token tied to the active project before the QR is shown.
+- Phone capture rejects uploads when the token is missing, expired, or tied to a different project.
 - Large desktop and phone room-photo API payloads are compressed before capture upload or render submission.
 - Phone capture POST and desktop polling GET share the canonical `/api/capture-sessions/:sessionId` endpoint.
 - Phone capture records are removed from temporary storage after first desktop read.
@@ -79,7 +89,7 @@ This checklist tracks what is needed to move the current deployed Roomwise beta 
 - `/privacy.html` returns 200.
 - `/terms.html` returns 200.
 - `/api/health` returns 200.
-- `/api/capture-sessions/test-session` returns 200.
+- `/api/capture-sessions/:sessionId` returns 200 only after a matching project-bound capture token is registered.
 - `/api/generate-room-render` returns 503 in demo mode and succeeds in live mode.
 - Vercel production deployment is `READY` after every push.
 

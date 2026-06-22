@@ -9,6 +9,7 @@ import {
   ExternalLink,
   ImagePlus,
   Loader2,
+  Mail,
   Palette,
   Phone,
   RefreshCcw,
@@ -19,8 +20,9 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  UserRound,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { concepts, palettes, products, roomTypes, styles } from "./data/catalog";
 import { checkIntegrationMode, generateRoomRender } from "./lib/api";
 import {
@@ -40,7 +42,31 @@ import {
   removeProduct,
   swapProduct,
 } from "./lib/recommendations";
-import { normalizeRoomPhoto, readFileAsDataUrl } from "./lib/roomPhoto";
+import {
+  buildGoogleOAuthUrl,
+  clearAuthSession,
+  clearOnboardingProject,
+  createDemoAuthSession,
+  createOnboardingProject,
+  fetchLatestSupabaseProject,
+  isSupabaseConfigured,
+  isValidEmail,
+  projectToPreferences,
+  readAuthSession,
+  readOnboardingProject,
+  readSignupDraft,
+  readSupabaseSessionFromUrl,
+  requestEmailMagicLink,
+  saveAuthSession,
+  saveOnboardingProject,
+  saveRoomPhotoAsset,
+  saveSupabaseProject,
+  saveSignupDraft,
+  type AuthSession,
+  type OnboardingProject,
+  type ProjectSetupInput,
+} from "./lib/onboarding";
+import { normalizeRoomPhoto } from "./lib/roomPhoto";
 import { copyShoppingList, formatCurrency } from "./lib/share";
 import {
   clearPersistedWorkspace,
@@ -73,6 +99,10 @@ const statusSequence: GenerationStatus[] = ["analyzing", "matching", "rendering"
 const styleNames = new Map(styles.map((style) => [style.id, style.label]));
 const paletteNames = new Map(palettes.map((palette) => [palette.id, palette.label]));
 const roomTypeNames = new Map(roomTypes.map((room) => [room.id, room.label]));
+
+function getInitialSignupDraft() {
+  return readSignupDraft();
+}
 
 function getInitialPreferences() {
   const persisted = readPersistedWorkspace();
@@ -129,13 +159,56 @@ function buildQrUrl(value: string) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=180x180&margin=8&data=${encodeURIComponent(value)}`;
 }
 
-function CaptureUpload({ sessionId }: { sessionId: string }) {
+function isLikelyMobileCaptureDevice() {
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent.toLowerCase();
+  const mobileUserAgent = /android|iphone|ipad|ipod|mobile|windows phone/.test(userAgent);
+  const narrowViewport = window.innerWidth <= 820;
+  const touchCapable = navigator.maxTouchPoints > 0;
+  const coarsePointer =
+    typeof window.matchMedia === "function" ? window.matchMedia("(pointer: coarse)").matches : false;
+
+  return mobileUserAgent || (narrowViewport && (touchCapable || coarsePointer));
+}
+
+function isCompactAppLayout() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.innerWidth <= 920;
+}
+
+function clearSupabaseAuthParams() {
+  const url = new URL(window.location.href);
+  const authKeys = ["access_token", "expires_at", "expires_in", "provider_token", "refresh_token", "token_type", "type"];
+
+  authKeys.forEach((key) => url.searchParams.delete(key));
+  url.hash = "";
+  window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+}
+
+function CaptureUpload({ sessionId, projectId }: { sessionId: string; projectId: string }) {
   const [status, setStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
-  const [message, setMessage] = useState("Take a clear photo in daylight, showing as much of the room as possible.");
+  const hasProjectBinding = Boolean(projectId);
+  const [message, setMessage] = useState(
+    hasProjectBinding
+      ? "Take a clear photo in daylight, showing as much of the room as possible."
+      : "This capture link is missing its project. Scan a fresh QR code from Roomwise.",
+  );
   const [captureConsent, setCaptureConsent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) {
+    if (!projectId) {
+      setStatus("error");
+      setMessage("This capture link is missing its project. Scan a fresh QR code from Roomwise.");
+      return;
+    }
+
     if (!captureConsent) {
       setStatus("error");
       setMessage(photoConsentRequiredMessage);
@@ -163,18 +236,20 @@ function CaptureUpload({ sessionId }: { sessionId: string }) {
           name: file.name,
           type: roomPhoto.type,
           size: roomPhoto.size,
+          projectId,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Upload failed.");
+        const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Upload failed.");
       }
 
       setStatus("done");
       setMessage("Photo added. You can go back to the larger screen to finish the redesign.");
-    } catch {
+    } catch (error) {
       setStatus("error");
-      setMessage("We could not upload that photo. Please check the link and try again.");
+      setMessage(error instanceof Error ? error.message : "We could not upload that photo. Please check the link and try again.");
     }
   }
 
@@ -202,7 +277,7 @@ function CaptureUpload({ sessionId }: { sessionId: string }) {
 
         <button
           className="primary-button capture-button"
-          disabled={!captureConsent || status === "uploading" || status === "done"}
+          disabled={!hasProjectBinding || !captureConsent || status === "uploading" || status === "done"}
           type="button"
           onClick={() => fileInputRef.current?.click()}
         >
@@ -239,10 +314,12 @@ function CaptureUpload({ sessionId }: { sessionId: string }) {
 }
 
 export default function App() {
-  const captureSession = new URLSearchParams(window.location.search).get("capture");
+  const searchParams = new URLSearchParams(window.location.search);
+  const captureSession = searchParams.get("capture");
+  const captureProject = searchParams.get("project") ?? "";
 
   if (captureSession) {
-    return <CaptureUpload sessionId={captureSession} />;
+    return <CaptureUpload sessionId={captureSession} projectId={captureProject} />;
   }
 
   return <RoomwiseWorkspace />;
@@ -262,9 +339,28 @@ function RoomwiseWorkspace() {
   const [previewMode, setPreviewMode] = useState<"before" | "after">("before");
   const [captureSessionId] = useState(createSessionId);
   const [captureCopied, setCaptureCopied] = useState(false);
+  const [captureRegistrationStatus, setCaptureRegistrationStatus] = useState<"idle" | "registering" | "ready" | "error">(
+    "idle",
+  );
   const [photoConsent, setPhotoConsent] = useState(false);
+  const [authSession, setAuthSession] = useState<AuthSession | null>(readAuthSession);
+  const [project, setProject] = useState<OnboardingProject | null>(() => readOnboardingProject(readAuthSession()?.user.id));
+  const [signupDraft, setSignupDraft] = useState(getInitialSignupDraft);
+  const [signupError, setSignupError] = useState<string | null>(null);
+  const [signupMessage, setSignupMessage] = useState<string | null>(null);
+  const [projectDraft, setProjectDraft] = useState<ProjectSetupInput>(() => ({
+    name: `${roomTypeNames.get(preferences.roomType) ?? "Room"} redesign`,
+    roomType: preferences.roomType,
+    location: preferences.location,
+    budget: preferences.budget,
+  }));
+  const [projectError, setProjectError] = useState<string | null>(null);
+  const [isDirectCameraDevice, setIsDirectCameraDevice] = useState(isLikelyMobileCaptureDevice);
+  const [isCompactLayout, setIsCompactLayout] = useState(isCompactAppLayout);
   const [telemetryEvents, setTelemetryEvents] = useState(readBetaTelemetry);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const signupEmailRef = useRef<HTMLInputElement>(null);
   const hasTrackedWorkspaceOpen = useRef(false);
   const timers = useRef<number[]>([]);
 
@@ -273,28 +369,58 @@ function RoomwiseWorkspace() {
     () => calculateCartSummary(selectedProducts, preferences.budget),
     [preferences.budget, selectedProducts],
   );
-  const captureUrl = useMemo(
-    () => `${window.location.origin}${window.location.pathname}?capture=${captureSessionId}`,
-    [captureSessionId],
-  );
-  const qrUrl = useMemo(() => buildQrUrl(captureUrl), [captureUrl]);
   const hasPlan = selectedProducts.length > 0;
+  const isAuthenticated = Boolean(authSession);
+  const hasProject = Boolean(project);
+  const canUseCapture = isAuthenticated && hasProject && photoConsent;
+  const canUploadRealPhoto = isAuthenticated && hasProject && photoConsent;
+  const isSamplePhoto = uploadedRoom?.name.toLowerCase().includes("sample") ?? false;
+  const canGenerateLive = Boolean(uploadedRoom && authSession && project && photoConsent && !isSamplePhoto);
+  const activeStep = !authSession
+    ? "account"
+    : !project
+      ? "project"
+      : !photoConsent
+        ? "consent"
+        : !uploadedRoom
+          ? "photo"
+          : hasPlan
+            ? "shop"
+            : "brief";
+  const captureUrl = useMemo(() => {
+    if (!project) {
+      return "";
+    }
+
+    const captureParams = new URLSearchParams({
+      capture: captureSessionId,
+      project: project.id,
+    });
+
+    return `${window.location.origin}${window.location.pathname}?${captureParams.toString()}`;
+  }, [captureSessionId, project]);
+  const qrUrl = useMemo(() => buildQrUrl(captureUrl), [captureUrl]);
   const displayedRoomUrl = previewMode === "after" && generatedRender ? generatedRender.imageUrl : uploadedRoom?.url;
   const workflowSteps = [
     {
+      label: "Account",
+      detail: authSession ? authSession.user.email : "Sign in",
+      state: authSession ? "complete" : "active",
+    },
+    {
+      label: "Project",
+      detail: project ? project.name : "Room basics",
+      state: project ? "complete" : authSession ? "active" : "idle",
+    },
+    {
       label: "Photo",
-      detail: uploadedRoom ? "Ready" : "Upload or scan",
-      state: uploadedRoom ? "complete" : "active",
+      detail: uploadedRoom ? "Ready" : photoConsent ? (isDirectCameraDevice ? "Take or choose" : "Upload or scan") : "Consent first",
+      state: uploadedRoom ? "complete" : project ? "active" : "idle",
     },
     {
-      label: "Brief",
-      detail: `${styleNames.get(preferences.style)} · ${formatCurrency(preferences.budget)}`,
-      state: uploadedRoom && !hasPlan ? "active" : hasPlan ? "complete" : "idle",
-    },
-    {
-      label: "Redesign",
+      label: "Shop",
       detail: hasPlan ? `${summary.itemCount} matched items` : "Generate and shop",
-      state: isGenerating(status) || hasPlan ? "active" : "idle",
+      state: hasPlan ? "complete" : uploadedRoom || isGenerating(status) ? "active" : "idle",
     },
   ] as const;
 
@@ -316,6 +442,71 @@ function RoomwiseWorkspace() {
   }, []);
 
   useEffect(() => {
+    function updateDevicePath() {
+      setIsDirectCameraDevice(isLikelyMobileCaptureDevice());
+      setIsCompactLayout(isCompactAppLayout());
+    }
+
+    updateDevicePath();
+    window.addEventListener("resize", updateDevicePath);
+
+    return () => window.removeEventListener("resize", updateDevicePath);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void readSupabaseSessionFromUrl()
+      .then((session) => {
+        if (!session || cancelled) {
+          return;
+        }
+
+        saveAuthSession(session);
+        setAuthSession(session);
+        clearSupabaseAuthParams();
+        setSignupError(null);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setSignupError(error instanceof Error ? error.message : "Could not finish Supabase sign in.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!authSession?.accessToken) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void fetchLatestSupabaseProject(authSession)
+      .then((latestProject) => {
+        if (!latestProject || cancelled) {
+          return;
+        }
+
+        saveOnboardingProject(latestProject);
+        setProject(latestProject);
+        updatePreferences(projectToPreferences(latestProject));
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setSignupError(error instanceof Error ? error.message : "Could not load your latest project.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authSession?.accessToken, authSession?.user.id]);
+
+  useEffect(() => {
     if (hasTrackedWorkspaceOpen.current) {
       return;
     }
@@ -333,9 +524,54 @@ function RoomwiseWorkspace() {
   }, [preferences, selectedConceptId, selectedProducts]);
 
   useEffect(() => {
+    if (!canUseCapture || isDirectCameraDevice || !project || uploadedRoom) {
+      setCaptureRegistrationStatus("idle");
+      return;
+    }
+
+    const controller = new AbortController();
+
+    setCaptureRegistrationStatus("registering");
+
+    void fetch(`/api/capture-sessions/${captureSessionId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        projectId: project.id,
+        ownerId: authSession?.user.id,
+      }),
+      signal: controller.signal,
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Could not prepare the phone capture link.");
+        }
+
+        if (!controller.signal.aborted) {
+          setCaptureRegistrationStatus("ready");
+        }
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted && !(error instanceof DOMException && error.name === "AbortError")) {
+          setCaptureRegistrationStatus("error");
+        }
+      });
+
+    return () => controller.abort();
+  }, [authSession?.user.id, canUseCapture, captureSessionId, isDirectCameraDevice, project, uploadedRoom]);
+
+  useEffect(() => {
+    if (!canUseCapture || !project || uploadedRoom || isDirectCameraDevice || captureRegistrationStatus !== "ready") {
+      return;
+    }
+
     const interval = window.setInterval(async () => {
       try {
-        const response = await fetch(`/api/capture-sessions/${captureSessionId}`);
+        const response = await fetch(
+          `/api/capture-sessions/${captureSessionId}?projectId=${encodeURIComponent(project.id)}`,
+        );
         const payload = (await response.json()) as {
           capture?: {
             imageDataUrl: string;
@@ -345,12 +581,20 @@ function RoomwiseWorkspace() {
           } | null;
         };
 
-        if (!payload.capture || uploadedRoom?.url === payload.capture.imageDataUrl) {
+        if (!payload.capture) {
           return;
         }
 
-        if (uploadedRoom?.objectUrl) {
-          URL.revokeObjectURL(uploadedRoom.url);
+        if (authSession && project) {
+          await saveRoomPhotoAsset({
+            session: authSession,
+            project,
+            imageDataUrl: payload.capture.imageDataUrl,
+            name: payload.capture.name,
+            type: payload.capture.type,
+            size: payload.capture.size,
+            sourceDevice: "phone-capture",
+          });
         }
 
         setUploadedRoom({
@@ -375,10 +619,195 @@ function RoomwiseWorkspace() {
     }, 1800);
 
     return () => window.clearInterval(interval);
-  }, [captureSessionId, uploadedRoom]);
+  }, [
+    authSession,
+    canUseCapture,
+    captureRegistrationStatus,
+    captureSessionId,
+    isDirectCameraDevice,
+    project,
+    uploadedRoom,
+    integrationMode,
+  ]);
 
   function updatePreferences(nextPreferences: Partial<ProjectPreferences>) {
     setPreferences((current) => ({ ...current, ...nextPreferences }));
+  }
+
+  function handleFocusSignup() {
+    if (!signupEmailRef.current && !authSession) {
+      if (uploadedRoom?.objectUrl) {
+        URL.revokeObjectURL(uploadedRoom.url);
+      }
+
+      setUploadedRoom(null);
+      setGeneratedRender(null);
+      setGenerationError(null);
+      setSelectedProducts([]);
+      setPreviewMode("before");
+      setStatus("idle");
+      setUploadError(null);
+      window.setTimeout(() => signupEmailRef.current?.focus(), 0);
+      return;
+    }
+
+    signupEmailRef.current?.focus();
+  }
+
+  function clearPrivateWorkspaceState() {
+    timers.current.forEach(window.clearTimeout);
+    timers.current = [];
+
+    if (uploadedRoom?.objectUrl) {
+      URL.revokeObjectURL(uploadedRoom.url);
+    }
+
+    setProject(null);
+    setPhotoConsent(false);
+    setUploadedRoom(null);
+    setUploadError(null);
+    setGeneratedRender(null);
+    setGenerationError(null);
+    setSelectedProducts([]);
+    setShareState("idle");
+    setPreviewMode("before");
+    setCaptureRegistrationStatus("idle");
+    setStatus("idle");
+  }
+
+  async function handleGoogleSignin() {
+    const googleUrl = buildGoogleOAuthUrl(window.location.href);
+
+    if (googleUrl) {
+      window.location.assign(googleUrl);
+      return;
+    }
+
+    const email = signupDraft.email.trim().toLowerCase();
+    const name = signupDraft.name.trim() || "Roomwise user";
+
+    if (!isValidEmail(email)) {
+      setSignupError("Enter your email first so the demo session has an account identity.");
+      setSignupMessage(null);
+      return;
+    }
+
+    const session = createDemoAuthSession({ name, email });
+    saveAuthSession(session);
+    setAuthSession(session);
+    setProject(readOnboardingProject(session.user.id));
+    setSignupError(null);
+    setSignupMessage("Signed in locally. Connect Supabase to enable Google in production.");
+  }
+
+  async function handleSignupSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const name = signupDraft.name.trim();
+    const email = signupDraft.email.trim().toLowerCase();
+
+    if (!name) {
+      setSignupError("Add your name to create the workspace.");
+      setSignupMessage(null);
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setSignupError("Enter a valid email address.");
+      setSignupMessage(null);
+      return;
+    }
+
+    saveSignupDraft({ name, email });
+
+    try {
+      const result = await requestEmailMagicLink(email, window.location.href);
+
+      if (result.mode === "supabase") {
+        setSignupError(null);
+        setSignupMessage("Check your email for the Roomwise sign-in link.");
+        return;
+      }
+
+      const session = createDemoAuthSession({ name, email });
+      saveAuthSession(session);
+      setAuthSession(session);
+      setProject(readOnboardingProject(session.user.id));
+      setSignupError(null);
+      setSignupMessage("Signed in locally. Connect Supabase to send magic links in production.");
+    } catch (error) {
+      setSignupError(error instanceof Error ? error.message : "Could not start sign in. Please try again.");
+      setSignupMessage(null);
+    }
+  }
+
+  async function handleProjectSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!authSession) {
+      setProjectError("Sign in before creating a project.");
+      return;
+    }
+
+    const name = projectDraft.name.trim();
+    const location = projectDraft.location.trim();
+
+    if (!name) {
+      setProjectError("Add a project name.");
+      return;
+    }
+
+    if (!projectDraft.roomType) {
+      setProjectError("Choose a room type.");
+      return;
+    }
+
+    if (!location) {
+      setProjectError("Add the country or city for shopping availability.");
+      return;
+    }
+
+    const nextProject = createOnboardingProject(
+      {
+        ...projectDraft,
+        name,
+        location,
+      },
+      authSession.user.id,
+    );
+
+    try {
+      await saveSupabaseProject(nextProject, authSession);
+      saveOnboardingProject(nextProject);
+      setProject(nextProject);
+      updatePreferences(projectToPreferences(nextProject));
+      setProjectError(null);
+    } catch (error) {
+      setProjectError(error instanceof Error ? error.message : "Could not save this project. Please try again.");
+    }
+  }
+
+  function handlePhotoConsentChange(checked: boolean) {
+    setPhotoConsent(checked);
+
+    if (checked) {
+      trackBetaEvent("photo_consent_confirmed", integrationMode);
+    }
+
+    if (checked && uploadError === photoConsentRequiredMessage) {
+      setUploadError(null);
+    }
+  }
+
+  function handleSignOut() {
+    clearAuthSession();
+    clearOnboardingProject();
+    clearPersistedWorkspace();
+    setAuthSession(null);
+    clearPrivateWorkspaceState();
+    setPreferences(initialPreferences);
+    setSelectedConceptId("warm-minimal");
+    trackBetaEvent("workspace_reset", integrationMode);
   }
 
   async function getRoomDataUrl(): Promise<string | null> {
@@ -407,6 +836,11 @@ function RoomwiseWorkspace() {
       return;
     }
 
+    if (!canGenerateLive && !isSamplePhoto) {
+      setUploadError("Sign in, create a project, and confirm photo consent before generating a redesign.");
+      return;
+    }
+
     timers.current.forEach(window.clearTimeout);
     timers.current = [];
     setShareState("idle");
@@ -414,7 +848,7 @@ function RoomwiseWorkspace() {
     setGenerationError(null);
     setPreviewMode("after");
     setStatus("analyzing");
-    trackBetaEvent("generation_started", integrationMode);
+    trackBetaEvent("generation_started", canGenerateLive ? integrationMode : "demo");
 
     statusSequence.slice(1).forEach((nextStatus, index) => {
       const timer = window.setTimeout(
@@ -431,7 +865,7 @@ function RoomwiseWorkspace() {
 
             const roomDataUrl = await getRoomDataUrl();
 
-            if (roomDataUrl && integrationMode === "live") {
+            if (roomDataUrl && integrationMode === "live" && canGenerateLive) {
               setStatus("rendering");
               try {
                 const render = await generateRoomRender({
@@ -448,7 +882,7 @@ function RoomwiseWorkspace() {
                 trackBetaEvent("generation_failed", "live");
               }
             } else {
-              trackBetaEvent("generation_completed", integrationMode);
+              trackBetaEvent("generation_completed", canGenerateLive ? integrationMode : "demo");
             }
           }
         },
@@ -459,6 +893,13 @@ function RoomwiseWorkspace() {
   }
 
   async function handleUpload(file: File) {
+    if (!authSession || !project) {
+      setUploadedRoom(null);
+      setUploadError("Create your Roomwise account and project before uploading a room photo.");
+      setStatus("idle");
+      return;
+    }
+
     if (!photoConsent) {
       setUploadedRoom(null);
       setUploadError(photoConsentRequiredMessage);
@@ -475,6 +916,16 @@ function RoomwiseWorkspace() {
 
     try {
       const roomPhoto = await normalizeRoomPhoto(file);
+
+      await saveRoomPhotoAsset({
+        session: authSession,
+        project,
+        imageDataUrl: roomPhoto.dataUrl,
+        name: file.name,
+        type: roomPhoto.type,
+        size: roomPhoto.size,
+        sourceDevice: "desktop",
+      });
 
       if (uploadedRoom?.objectUrl) {
         URL.revokeObjectURL(uploadedRoom.url);
@@ -496,9 +947,13 @@ function RoomwiseWorkspace() {
       setShareState("idle");
       setStatus("idle");
       trackBetaEvent("photo_uploaded", integrationMode);
-    } catch {
+    } catch (error) {
       setUploadedRoom(null);
-      setUploadError("Could not prepare that image. Please try a smaller JPG, PNG, or WebP room photo.");
+      setUploadError(
+        error instanceof Error
+          ? error.message
+          : "Could not prepare that image. Please try a smaller JPG, PNG, or WebP room photo.",
+      );
       setStatus("idle");
     }
   }
@@ -537,6 +992,16 @@ function RoomwiseWorkspace() {
   }
 
   async function handleCopyCaptureLink() {
+    if (!captureUrl) {
+      setUploadError("Create a project and confirm photo consent before using phone capture.");
+      return;
+    }
+
+    if (captureRegistrationStatus !== "ready") {
+      setUploadError("The secure phone link is not ready yet. Please try again in a moment.");
+      return;
+    }
+
     try {
       await navigator.clipboard.writeText(captureUrl);
       setCaptureCopied(true);
@@ -580,6 +1045,7 @@ function RoomwiseWorkspace() {
     setGenerationError(null);
     setShareState("idle");
     setPreviewMode("before");
+    setCaptureRegistrationStatus("idle");
     setStatus("idle");
     trackBetaEvent("workspace_reset", integrationMode);
   }
@@ -630,6 +1096,15 @@ function RoomwiseWorkspace() {
                 ? "AI render ready"
                 : "Demo mode"}
           </span>
+          <button className="account-button" type="button" onClick={handleFocusSignup}>
+            <UserRound size={15} />
+            {authSession ? authSession.user.name : "Sign in"}
+          </button>
+          {authSession ? (
+            <button className="text-button" type="button" onClick={handleSignOut}>
+              Sign out
+            </button>
+          ) : null}
           <nav className="header-links" aria-label="Support and legal links">
             {betaLegalLinks.map((link) => (
               <a key={link.href} href={link.href}>
@@ -673,15 +1148,16 @@ function RoomwiseWorkspace() {
           )}
         </section>
 
-        <button className="phone-capture-row" type="button" onClick={handleCopyCaptureLink}>
-          <Phone size={19} />
-          <span>
-            <strong>{captureCopied ? "Link copied" : "Upload from phone"}</strong>
-            <small>Scan to take a photo</small>
-          </span>
-          <img src={qrUrl} alt="QR code for phone room upload" />
-          <ArrowRight size={16} />
-        </button>
+        {canUseCapture ? (
+          <button className="phone-capture-row" type="button" onClick={handleCopyCaptureLink}>
+            <Phone size={19} />
+            <span>
+              <strong>{captureCopied ? "Link copied" : "Upload from phone"}</strong>
+              <small>Scan to take a photo</small>
+            </span>
+            <ArrowRight size={16} />
+          </button>
+        ) : null}
 
         <section className="rail-section workspace-save" aria-label="Workspace save status">
           <p className="rail-label">Workspace</p>
@@ -742,58 +1218,322 @@ function RoomwiseWorkspace() {
           {displayedRoomUrl ? (
             <img src={displayedRoomUrl} alt={`${previewMode} room preview`} onError={handlePreviewError} />
           ) : (
-            <div className="upload-hero">
-              <div>
-                <p className="eyebrow">Step 1 · Room photo</p>
-                <h1>Start with one clear photo.</h1>
+            <div className={`upload-hero onboarding-step-${activeStep}`}>
+              <div className="landing-copy">
+                <h1>Design a room you can actually buy.</h1>
                 <p>
-                  Upload here or scan with your phone. Roomwise keeps the room structure, then builds a realistic
-                  redesign and shopping plan around your budget.
+                  Upload a room photo, set the style and budget, then generate a realistic redesign with a shopping
+                  plan you can act on.
                 </p>
                 <div className="onboarding-strip" aria-label="How Roomwise works">
                   <span>Add photo</span>
                   <span>Set brief</span>
                   <span>Generate and shop</span>
                 </div>
-                <label className="photo-consent">
-                  <input
-                    checked={photoConsent}
-                    type="checkbox"
-                    onChange={(event) => {
-                      setPhotoConsent(event.target.checked);
-                      if (event.target.checked) {
-                        trackBetaEvent("photo_consent_confirmed", integrationMode);
-                      }
-                      if (event.target.checked && uploadError === photoConsentRequiredMessage) {
-                        setUploadError(null);
-                      }
-                    }}
-                  />
-                  <span>
-                    <strong>{photoConsentLabel}</strong>
-                    <small>{phoneCaptureConsentDetail}</small>
-                  </span>
-                </label>
-                <div className="upload-actions">
-                  <button
-                    className="primary-button"
-                    disabled={!photoConsent}
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
+
+                {!authSession ? (
+                  <form className="signup-card auth-card" aria-label="Sign in to Roomwise" onSubmit={handleSignupSubmit}>
+                    <div className="signup-card-head">
+                      <UserRound size={18} />
+                      <span>
+                        <strong>Create your free workspace</strong>
+                        <small>Sign in before uploading private room photos.</small>
+                      </span>
+                    </div>
+                    <button className="secondary-button auth-provider-button" type="button" onClick={() => void handleGoogleSignin()}>
+                      <ShieldCheck size={17} />
+                      Continue with Google
+                    </button>
+                    <div className="signup-fields">
+                      <label>
+                        <span>Name</span>
+                        <input
+                          value={signupDraft.name}
+                          autoComplete="name"
+                          placeholder="Rory Hayes"
+                          onChange={(event) => {
+                            const nextDraft = { ...signupDraft, name: event.target.value };
+                            setSignupDraft(nextDraft);
+                            saveSignupDraft(nextDraft);
+                            setSignupError(null);
+                          }}
+                        />
+                      </label>
+                      <label>
+                        <span>Email</span>
+                        <input
+                          ref={signupEmailRef}
+                          value={signupDraft.email}
+                          autoComplete="email"
+                          inputMode="email"
+                          placeholder="you@example.com"
+                          type="email"
+                          onChange={(event) => {
+                            const nextDraft = { ...signupDraft, email: event.target.value };
+                            setSignupDraft(nextDraft);
+                            saveSignupDraft(nextDraft);
+                            setSignupError(null);
+                          }}
+                        />
+                      </label>
+                    </div>
+                    <button className="primary-button signup-submit" type="submit">
+                      <Mail size={17} />
+                      Continue with email
+                    </button>
+                    <p className="auth-note">
+                      {isSupabaseConfigured()
+                        ? "We will send a passwordless sign-in link."
+                        : "Local auth mode is active until Supabase env vars are connected."}
+                    </p>
+                    {signupError ? (
+                      <span className="signup-feedback error" role="alert">
+                        {signupError}
+                      </span>
+                    ) : null}
+                    {signupMessage ? (
+                      <span className="signup-feedback" role="status">
+                        {signupMessage}
+                      </span>
+                    ) : null}
+                    <div className="upload-actions landing-actions">
+                      <button className="secondary-button" type="button" onClick={handleUseSample}>
+                        See example
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
+
+                {authSession && !project ? (
+                  <form
+                    className="signup-card project-setup-card"
+                    aria-label="Create your first Roomwise project"
+                    onSubmit={handleProjectSubmit}
                   >
-                    <Upload size={18} />
-                    Upload photo
-                  </button>
-                  <button className="secondary-button" type="button" onClick={handleUseSample}>
-                    Use sample
-                  </button>
-                </div>
+                    <div className="signup-card-head">
+                      <ClipboardList size={18} />
+                      <span>
+                        <strong>Set up the room</strong>
+                        <small>Keep this short. Style and detail choices come after upload.</small>
+                      </span>
+                    </div>
+                    <div className="signup-fields project-fields">
+                      <label>
+                        <span>Project name</span>
+                        <input
+                          value={projectDraft.name}
+                          autoComplete="off"
+                          placeholder="Living room redesign"
+                          onChange={(event) => {
+                            setProjectDraft((current) => ({ ...current, name: event.target.value }));
+                            setProjectError(null);
+                          }}
+                        />
+                      </label>
+                      <label>
+                        <span>Room type</span>
+                        <select
+                          value={projectDraft.roomType}
+                          onChange={(event) => {
+                            setProjectDraft((current) => ({
+                              ...current,
+                              roomType: event.target.value as ProjectPreferences["roomType"],
+                            }));
+                            setProjectError(null);
+                          }}
+                        >
+                          {roomTypes.map((room) => (
+                            <option key={room.id} value={room.id}>
+                              {room.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Location or country</span>
+                        <input
+                          value={projectDraft.location}
+                          autoComplete="country-name"
+                          placeholder="Dublin, Ireland"
+                          onChange={(event) => {
+                            setProjectDraft((current) => ({ ...current, location: event.target.value }));
+                            setProjectError(null);
+                          }}
+                        />
+                      </label>
+                      <label>
+                        <span>Budget</span>
+                        <select
+                          value={projectDraft.budget ?? 2500}
+                          onChange={(event) => {
+                            setProjectDraft((current) => ({ ...current, budget: Number(event.target.value) }));
+                            setProjectError(null);
+                          }}
+                        >
+                          <option value={1200}>EUR 1,200 - light refresh</option>
+                          <option value={2500}>EUR 2,500 - balanced redesign</option>
+                          <option value={4000}>EUR 4,000 - premium room</option>
+                        </select>
+                      </label>
+                    </div>
+                    <button className="primary-button signup-submit" type="submit">
+                      Create project
+                      <ArrowRight size={17} />
+                    </button>
+                    {projectError ? (
+                      <span className="signup-feedback error" role="alert">
+                        {projectError}
+                      </span>
+                    ) : null}
+                  </form>
+                ) : null}
+
+                {authSession && project && !photoConsent ? (
+                  <section className="signup-card consent-card" aria-label="Photo consent">
+                    <div className="signup-card-head">
+                      <ShieldCheck size={18} />
+                      <span>
+                        <strong>Confirm photo consent</strong>
+                        <small>Required before desktop upload or phone capture is available.</small>
+                      </span>
+                    </div>
+                    <label className="photo-consent">
+                      <input
+                        checked={photoConsent}
+                        type="checkbox"
+                        onChange={(event) => handlePhotoConsentChange(event.target.checked)}
+                      />
+                      <span>
+                        <strong>{photoConsentLabel}</strong>
+                        <small>{phoneCaptureConsentDetail}</small>
+                      </span>
+                    </label>
+                  </section>
+                ) : null}
+
+                {authSession && project && photoConsent ? (
+                  <section className="signup-card upload-gate-card" aria-label="Upload room photo">
+                    <div className="signup-card-head">
+                      {isDirectCameraDevice ? <Phone size={18} /> : <Camera size={18} />}
+                      <span>
+                        <strong>{isDirectCameraDevice ? "Take one clear room photo" : "Add one clear room photo"}</strong>
+                        <small>
+                          {isDirectCameraDevice
+                            ? "Use your phone camera now, or choose an existing room photo."
+                            : "Upload from this device or scan the QR code with your phone camera."}
+                        </small>
+                      </span>
+                    </div>
+                    <div className="upload-actions">
+                      {isDirectCameraDevice ? (
+                        <>
+                          <button
+                            className="primary-button"
+                            disabled={!canUploadRealPhoto}
+                            type="button"
+                            onClick={() => cameraInputRef.current?.click()}
+                          >
+                            <Camera size={18} />
+                            Take room photo
+                          </button>
+                          <button
+                            className="secondary-button"
+                            disabled={!canUploadRealPhoto}
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                          >
+                            <ImagePlus size={18} />
+                            Choose photo
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="primary-button"
+                          disabled={!canUploadRealPhoto}
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          <Upload size={18} />
+                          Upload photo
+                        </button>
+                      )}
+                      <button className="secondary-button" type="button" onClick={handleUseSample}>
+                        Use sample
+                      </button>
+                    </div>
+                  </section>
+                ) : null}
               </div>
-              <div className="qr-card">
-                <ShieldCheck size={19} />
-                <img src={qrUrl} alt="QR code for phone room upload" />
-                <strong>Use your phone camera</strong>
-                <span>Scan to upload into this session.</span>
+              <div className="landing-side">
+                {!authSession ? (
+                  <div className="landing-preview-card" aria-hidden="true">
+                    <span />
+                    <strong>Same room, clearer plan</strong>
+                    <small>Before, after, and shopping list stay together.</small>
+                  </div>
+                ) : null}
+
+                {authSession && !project ? (
+                  <div className="onboarding-side-card" aria-label="Onboarding progress">
+                    <strong>Next steps</strong>
+                    <span className="complete">
+                      <Check size={14} />
+                      Account created
+                    </span>
+                    <span className="active">
+                      <ClipboardList size={14} />
+                      Project basics
+                    </span>
+                    <span>
+                      <Camera size={14} />
+                      Photo upload
+                    </span>
+                  </div>
+                ) : null}
+
+                {authSession && project && !photoConsent ? (
+                  <div className="onboarding-side-card privacy-card" aria-label="Private photo handling">
+                    <ShieldCheck size={22} />
+                    <strong>Private by default</strong>
+                    <span>Real uploads are locked until consent is confirmed for this project.</span>
+                  </div>
+                ) : null}
+
+                {canUseCapture && isDirectCameraDevice ? (
+                  <div className="onboarding-side-card mobile-camera-card" aria-label="Mobile camera upload">
+                    <Phone size={22} />
+                    <strong>Camera ready</strong>
+                    <span>No QR needed on this device. Take a photo directly from the app.</span>
+                  </div>
+                ) : null}
+
+                {canUseCapture && !isDirectCameraDevice ? (
+                  <div className="qr-card">
+                    {captureRegistrationStatus === "ready" ? (
+                      <>
+                        <ShieldCheck size={19} />
+                        <img src={qrUrl} alt="QR code for phone room upload" />
+                        <strong>Use your phone camera</strong>
+                        <span>Scan to upload into {project?.name ?? "this project"}.</span>
+                        <button className="text-button" type="button" onClick={() => void handleCopyCaptureLink()}>
+                          {captureCopied ? "Copied" : "Copy link"}
+                        </button>
+                      </>
+                    ) : captureRegistrationStatus === "error" ? (
+                      <>
+                        <ShieldCheck size={19} />
+                        <strong>Phone link unavailable</strong>
+                        <span>Upload from this device, or try refreshing the page before scanning.</span>
+                      </>
+                    ) : (
+                      <>
+                        <Loader2 size={19} />
+                        <strong>Preparing secure phone link</strong>
+                        <span>We are tying this QR code to {project?.name ?? "this project"}.</span>
+                      </>
+                    )}
+                  </div>
+                ) : null}
               </div>
             </div>
           )}
@@ -840,21 +1580,54 @@ function RoomwiseWorkspace() {
           }}
         />
 
+        <input
+          ref={cameraInputRef}
+          className="file-input"
+          accept="image/jpeg,image/png,image/webp"
+          capture="environment"
+          type="file"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) {
+              void handleUpload(file);
+            }
+            event.currentTarget.value = "";
+          }}
+        />
+
         {uploadError ? <p className="upload-error" role="status">{uploadError}</p> : null}
 
         <footer className="stage-actionbar">
           <div className={uploadedRoom ? "ready-state ready" : "ready-state"}>
             {uploadedRoom ? <Check size={17} /> : <Camera size={17} />}
-            <strong>{uploadedRoom ? "Photo ready" : "Waiting for photo"}</strong>
+            <strong>
+              {uploadedRoom
+                ? "Photo ready"
+                : !authSession
+                  ? "Account required"
+                  : !project
+                    ? "Project basics"
+                    : !photoConsent
+                      ? "Consent required"
+                      : "Waiting for photo"}
+            </strong>
             <span>
               {uploadedRoom
                 ? "Room structure will be preserved for the redesign."
-                : "Upload or scan the QR code to add a room."}
+                : !authSession
+                  ? "Sign in before uploading private room photos."
+                  : !project
+                    ? "Create a project to unlock upload."
+                    : !photoConsent
+                      ? "Confirm photo consent to unlock upload and phone capture."
+                      : isDirectCameraDevice
+                        ? "Take a photo or choose one from this phone."
+                        : "Upload or scan the QR code to add a room."}
             </span>
           </div>
           <button
             className="primary-button generate-button"
-            disabled={!uploadedRoom || isGenerating(status)}
+            disabled={!uploadedRoom || isGenerating(status) || (!canGenerateLive && !isSamplePhoto)}
             type="button"
             onClick={() => void handleGeneratePlan()}
           >
@@ -867,10 +1640,43 @@ function RoomwiseWorkspace() {
 
       <aside className="design-drawer" aria-label="Design preferences and shopping plan">
         <section className="drawer-section intro">
-          <p className="eyebrow">Step 2 · Design brief</p>
-          <h2>Tell us what should change.</h2>
+          <p className="eyebrow">{uploadedRoom ? "Step 4 · Design brief" : "Onboarding"}</p>
+          <h2>{uploadedRoom ? "Tell us what should change." : "Your private project starts here."}</h2>
+          {authSession && isCompactLayout ? (
+            <div className="drawer-account-row" aria-label="Mobile account controls">
+              <span>
+                <UserRound size={15} />
+                <strong>{authSession.user.name}</strong>
+              </span>
+              <button className="text-button" type="button" onClick={handleSignOut}>
+                Sign out
+              </button>
+              <nav aria-label="Mobile support and legal links">
+                {betaLegalLinks.map((link) => (
+                  <a key={link.href} href={link.href}>
+                    {link.label}
+                  </a>
+                ))}
+              </nav>
+            </div>
+          ) : null}
+          {!authSession && uploadedRoom && isSamplePhoto ? (
+            <div className="demo-conversion-card" aria-label="Start your own redesign">
+              <span>
+                <UserRound size={16} />
+                <strong>Ready to use your own room?</strong>
+              </span>
+              <p>Create a workspace first, then upload a private room photo from this device or your phone camera.</p>
+              <button className="primary-button" type="button" onClick={handleFocusSignup}>
+                Start with my room
+                <ArrowRight size={16} />
+              </button>
+            </div>
+          ) : null}
         </section>
 
+        {uploadedRoom ? (
+          <>
         <section className="preference-stack" aria-label="Room brief">
           <label className="quiet-field">
             <span>
@@ -910,6 +1716,24 @@ function RoomwiseWorkspace() {
 
           <label className="quiet-field">
             <span>
+              <Palette size={15} />
+              Colour palette
+            </span>
+            <select
+              value={preferences.palette}
+              onChange={(event) => updatePreferences({ palette: event.target.value as ProjectPreferences["palette"] })}
+            >
+              {palettes.map((palette) => (
+                <option key={palette.id} value={palette.id}>
+                  {palette.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown size={17} />
+          </label>
+
+          <label className="quiet-field">
+            <span>
               <BadgeEuro size={15} />
               Budget
             </span>
@@ -917,6 +1741,24 @@ function RoomwiseWorkspace() {
               <option value={1200}>EUR 1,200 - light refresh</option>
               <option value={2500}>EUR 2,500 - balanced redesign</option>
               <option value={4000}>EUR 4,000 - premium room</option>
+            </select>
+            <ChevronDown size={17} />
+          </label>
+
+          <label className="quiet-field">
+            <span>
+              <Sparkles size={15} />
+              Redesign level
+            </span>
+            <select
+              value={preferences.designIntensity}
+              onChange={(event) =>
+                updatePreferences({ designIntensity: event.target.value as ProjectPreferences["designIntensity"] })
+              }
+            >
+              <option value="light-touch">Light refresh</option>
+              <option value="balanced">Balanced redesign</option>
+              <option value="full-redesign">Full redesign</option>
             </select>
             <ChevronDown size={17} />
           </label>
@@ -1012,6 +1854,27 @@ function RoomwiseWorkspace() {
               </span>
             </div>
             <ArrowRight size={16} />
+          </section>
+        )}
+          </>
+        ) : (
+          <section className="drawer-locked" aria-label="Onboarding checklist">
+            <span className={authSession ? "complete" : "active"}>
+              <UserRound size={16} />
+              <strong>{authSession ? "Signed in" : "Sign in required"}</strong>
+            </span>
+            <span className={project ? "complete" : authSession ? "active" : ""}>
+              <ClipboardList size={16} />
+              <strong>{project ? project.name : "Create project"}</strong>
+            </span>
+            <span className={photoConsent ? "complete" : project ? "active" : ""}>
+              <ShieldCheck size={16} />
+              <strong>{photoConsent ? "Photo consent confirmed" : "Confirm consent"}</strong>
+            </span>
+            <span className={uploadedRoom ? "complete" : photoConsent ? "active" : ""}>
+              <Camera size={16} />
+              <strong>{uploadedRoom ? "Photo uploaded" : "Upload photo"}</strong>
+            </span>
           </section>
         )}
       </aside>

@@ -3,8 +3,11 @@ import express from "express";
 import {
   captureMaxImageDataUrlLength,
   consumeCaptureRecord,
+  isCaptureSessionReady,
   isValidCaptureImageDataUrl,
+  isValidCaptureProjectId,
   isValidCaptureSessionId,
+  registerCaptureSession,
   saveCaptureRecord,
 } from "../api/_captureStore";
 import { isSupportedRoomImageDataUrl, roomImageDataUrlMaxLength } from "../api/_imageDataUrl";
@@ -37,15 +40,31 @@ app.get("/api/capture-sessions/:sessionId", (request, response) => {
   setNoStoreCacheHeaders(response);
 
   const { sessionId } = request.params;
+  const projectId = String(request.query.projectId ?? "");
 
   if (!isValidCaptureSessionId(sessionId)) {
     response.status(400).json({ error: "Invalid sessionId." });
     return;
   }
 
+  if (!projectId) {
+    response.status(400).json({ error: "Missing projectId." });
+    return;
+  }
+
+  if (!isValidCaptureProjectId(projectId)) {
+    response.status(400).json({ error: "Invalid projectId." });
+    return;
+  }
+
+  if (!isCaptureSessionReady(sessionId, projectId)) {
+    response.status(404).json({ ok: false, capture: null, error: "Capture link expired." });
+    return;
+  }
+
   response.json({
     ok: true,
-    capture: consumeCaptureRecord(sessionId),
+    capture: consumeCaptureRecord(sessionId, projectId),
   });
 });
 
@@ -56,10 +75,28 @@ function handleCapturePhotoPost(request: express.Request, response: express.Resp
     name?: string;
     type?: string;
     size?: number;
+    projectId?: string;
   } | undefined;
 
   if (!isValidCaptureSessionId(sessionId)) {
     response.status(400).json({ error: "Invalid sessionId." });
+    return;
+  }
+
+  const projectId = String(body?.projectId ?? "");
+
+  if (!projectId) {
+    response.status(400).json({ error: "Missing projectId." });
+    return;
+  }
+
+  if (!isValidCaptureProjectId(projectId)) {
+    response.status(400).json({ error: "Invalid projectId." });
+    return;
+  }
+
+  if (!isCaptureSessionReady(sessionId, projectId)) {
+    response.status(403).json({ error: "Capture link expired. Scan the QR code again." });
     return;
   }
 
@@ -78,15 +115,52 @@ function handleCapturePhotoPost(request: express.Request, response: express.Resp
     return;
   }
 
-  saveCaptureRecord(sessionId, {
+  const saved = saveCaptureRecord(sessionId, projectId, {
     imageDataUrl: body.imageDataUrl,
     name: body.name ?? "Phone room photo",
     type: body.type ?? "image/jpeg",
     size: body.size ?? 0,
   });
 
+  if (!saved) {
+    response.status(403).json({ error: "Capture link expired. Scan the QR code again." });
+    return;
+  }
+
   response.json({ ok: true });
 }
+
+app.put("/api/capture-sessions/:sessionId", (request, response) => {
+  setNoStoreCacheHeaders(response);
+
+  const { sessionId } = request.params;
+  const body = request.body as {
+    projectId?: string;
+    ownerId?: string;
+  } | undefined;
+  const projectId = String(body?.projectId ?? "");
+
+  if (!isValidCaptureSessionId(sessionId)) {
+    response.status(400).json({ error: "Invalid sessionId." });
+    return;
+  }
+
+  if (!projectId) {
+    response.status(400).json({ error: "Missing projectId." });
+    return;
+  }
+
+  if (!isValidCaptureProjectId(projectId)) {
+    response.status(400).json({ error: "Invalid projectId." });
+    return;
+  }
+
+  registerCaptureSession(sessionId, {
+    projectId,
+    ownerId: typeof body?.ownerId === "string" ? body.ownerId : undefined,
+  });
+  response.json({ ok: true });
+});
 
 app.post("/api/capture-sessions/:sessionId", (request, response) => {
   setNoStoreCacheHeaders(response);

@@ -21,7 +21,7 @@ describe("vercel security headers", () => {
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("script-src 'self'");
     expect(csp).toContain("img-src 'self' data: blob: https://api.qrserver.com");
-    expect(csp).toContain("connect-src 'self'");
+    expect(csp).toContain("connect-src 'self' https://*.supabase.co https://*.supabase.in");
     expect(csp).toContain("frame-ancestors 'none'");
   });
 });

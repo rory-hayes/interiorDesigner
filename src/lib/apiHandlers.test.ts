@@ -51,6 +51,24 @@ describe("API handlers", () => {
   });
 
   it("stores and consumes phone captures through the canonical session endpoint", () => {
+    const projectId = "project_abc123";
+    const registerResponse = createJsonResponse();
+
+    captureSessionHandler(
+      {
+        method: "PUT",
+        query: { sessionId: "session-123456" },
+        body: {
+          projectId,
+          ownerId: "user_abc123",
+        },
+      },
+      registerResponse,
+    );
+
+    expect(registerResponse.statusCode).toBe(200);
+    expect(registerResponse.payload).toEqual({ ok: true });
+
     const postResponse = createJsonResponse();
     const imageDataUrl = "data:image/jpeg;base64,YWJjZA==";
 
@@ -63,6 +81,7 @@ describe("API handlers", () => {
           name: "phone-room.jpg",
           type: "image/jpeg",
           size: 1234,
+          projectId,
         },
       },
       postResponse,
@@ -77,7 +96,7 @@ describe("API handlers", () => {
     captureSessionHandler(
       {
         method: "GET",
-        query: { sessionId: "session-123456" },
+        query: { sessionId: "session-123456", projectId },
       },
       getResponse,
     );
@@ -98,11 +117,70 @@ describe("API handlers", () => {
     captureSessionHandler(
       {
         method: "GET",
-        query: { sessionId: "session-123456" },
+        query: { sessionId: "session-123456", projectId },
       },
       consumedResponse,
     );
 
-    expect(consumedResponse.payload).toEqual({ ok: true, capture: null });
+    expect(consumedResponse.statusCode).toBe(404);
+    expect(consumedResponse.payload).toEqual({ ok: false, capture: null, error: "Capture link expired." });
+  });
+
+  it("rejects phone captures before the desktop project registers the token", () => {
+    const response = createJsonResponse();
+
+    captureSessionHandler(
+      {
+        method: "POST",
+        query: { sessionId: "session-123456" },
+        body: {
+          imageDataUrl: "data:image/jpeg;base64,YWJjZA==",
+          name: "phone-room.jpg",
+          type: "image/jpeg",
+          size: 1234,
+          projectId: "project_abc123",
+        },
+      },
+      response,
+    );
+
+    expect(response.statusCode).toBe(403);
+    expect(response.payload).toEqual({ error: "Capture link expired. Scan the QR code again." });
+  });
+
+  it("rejects phone captures when the QR project does not match the registered project", () => {
+    const registerResponse = createJsonResponse();
+
+    captureSessionHandler(
+      {
+        method: "PUT",
+        query: { sessionId: "session-123456" },
+        body: {
+          projectId: "project_abc123",
+          ownerId: "user_abc123",
+        },
+      },
+      registerResponse,
+    );
+
+    const postResponse = createJsonResponse();
+
+    captureSessionHandler(
+      {
+        method: "POST",
+        query: { sessionId: "session-123456" },
+        body: {
+          imageDataUrl: "data:image/jpeg;base64,YWJjZA==",
+          name: "phone-room.jpg",
+          type: "image/jpeg",
+          size: 1234,
+          projectId: "project_other",
+        },
+      },
+      postResponse,
+    );
+
+    expect(postResponse.statusCode).toBe(403);
+    expect(postResponse.payload).toEqual({ error: "Capture link expired. Scan the QR code again." });
   });
 });
