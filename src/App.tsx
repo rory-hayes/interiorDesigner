@@ -289,7 +289,10 @@ function CaptureUpload({ sessionId, projectId }: { sessionId: string; projectId:
           ref={fileInputRef}
           className="file-input"
           accept="image/jpeg,image/png,image/webp"
+          aria-hidden="true"
           capture="environment"
+          disabled={!hasProjectBinding || !captureConsent || status === "uploading" || status === "done"}
+          tabIndex={-1}
           type="file"
           onChange={(event) => {
             const file = event.target.files?.[0];
@@ -1570,6 +1573,9 @@ function RoomwiseWorkspace() {
           ref={fileInputRef}
           className="file-input"
           accept="image/jpeg,image/png,image/webp"
+          aria-hidden="true"
+          disabled={!canUploadRealPhoto}
+          tabIndex={-1}
           type="file"
           onChange={(event) => {
             const file = event.target.files?.[0];
@@ -1584,7 +1590,10 @@ function RoomwiseWorkspace() {
           ref={cameraInputRef}
           className="file-input"
           accept="image/jpeg,image/png,image/webp"
+          aria-hidden="true"
           capture="environment"
+          disabled={!canUploadRealPhoto}
+          tabIndex={-1}
           type="file"
           onChange={(event) => {
             const file = event.target.files?.[0];

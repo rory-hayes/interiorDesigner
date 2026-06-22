@@ -88,8 +88,14 @@ describe("Roomwise beta safeguards", () => {
   }
 
   it("gates real upload controls behind auth, project setup, and photo consent", async () => {
-    render(<App />);
+    const { container } = render(<App />);
     await waitFor(() => expect(screen.getByText("Demo mode")).toBeTruthy());
+
+    const lockedFileInputs = Array.from(container.querySelectorAll('input[type="file"]')) as HTMLInputElement[];
+    expect(lockedFileInputs).toHaveLength(2);
+    expect(lockedFileInputs.every((input) => input.disabled)).toBe(true);
+    expect(lockedFileInputs.every((input) => input.tabIndex === -1)).toBe(true);
+    expect(lockedFileInputs.every((input) => input.getAttribute("aria-hidden") === "true")).toBe(true);
 
     expect(screen.getByRole("button", { name: /continue with google/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /continue with email/i })).toBeTruthy();
@@ -106,6 +112,8 @@ describe("Roomwise beta safeguards", () => {
     fireEvent.click(screen.getByLabelText(/i have the right to use this room photo/i));
 
     expect((screen.getByRole("button", { name: /upload photo/i }) as HTMLButtonElement).disabled).toBe(false);
+    const unlockedFileInputs = Array.from(container.querySelectorAll('input[type="file"]')) as HTMLInputElement[];
+    expect(unlockedFileInputs.every((input) => input.disabled)).toBe(false);
     const qrImage = await screen.findByAltText(/qr code for phone room upload/i);
     const qrSrc = qrImage.getAttribute("src") ?? "";
     const decodedQrSrc = decodeURIComponent(qrSrc);
