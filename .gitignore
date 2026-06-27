@@ -7,3 +7,6 @@ dist/
 docs/superpowers/
 coverage/
 .vercel/
+.next/
+.vinext/
+.wrangler/

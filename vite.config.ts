@@ -1,15 +1,42 @@
-import react from "@vitejs/plugin-react";
-import { defineConfig } from "vitest/config";
+import { cloudflare } from "@cloudflare/vite-plugin";
+import vinext from "vinext";
+import { defineConfig } from "vite";
+import hostingConfig from "./.openai/hosting.json";
+import { sites } from "./build/sites-vite-plugin";
+
+const siteCreatorPlaceholderDatabaseId = "00000000-0000-4000-8000-000000000000";
+
+const { d1, r2 } = hostingConfig;
+
+const localBindingConfig = {
+  main: "./worker/index.ts",
+  compatibility_flags: ["nodejs_compat"],
+  d1_databases: d1
+    ? [
+        {
+          binding: d1,
+          database_name: "roomwise-d1",
+          database_id: siteCreatorPlaceholderDatabaseId,
+        },
+      ]
+    : [],
+  r2_buckets: r2
+    ? [
+        {
+          binding: r2,
+          bucket_name: "roomwise-r2",
+        },
+      ]
+    : [],
+};
 
 export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      "/api": "http://127.0.0.1:8787",
-    },
-  },
-  test: {
-    environment: "jsdom",
-    globals: true,
-  },
+  plugins: [
+    vinext(),
+    sites(),
+    cloudflare({
+      viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
+      config: localBindingConfig,
+    }),
+  ],
 });

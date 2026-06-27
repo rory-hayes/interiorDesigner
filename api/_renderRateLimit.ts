@@ -7,7 +7,6 @@ interface RenderRateLimitResult {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var __roomwiseRenderRateLimits: Map<string, number[]> | undefined;
 }
 
